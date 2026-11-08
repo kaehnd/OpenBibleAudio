@@ -34,6 +34,23 @@ android {
     buildFeatures {
         compose = true
     }
+    testOptions {
+        // Required by AGP's Compose Preview tasks (otherwise `./gradlew tasks`/`check` fail to
+        // configure) and by Robolectric-based tests.
+        unitTests.isIncludeAndroidResources = true
+
+        // Gradle Managed Device: Gradle creates/boots/tears down this emulator itself, so
+        // instrumented tests need no machine-specific AVD. Run: ./gradlew pixel9Api37DebugAndroidTest
+        managedDevices {
+            allDevices {
+                create<com.android.build.api.dsl.ManagedVirtualDevice>("pixel9Api37") {
+                    device = "Pixel 9"
+                    apiLevel = 37
+                    systemImageSource = "google_apis_playstore"
+                }
+            }
+        }
+    }
 }
 
 dependencies {
