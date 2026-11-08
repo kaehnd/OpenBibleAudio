@@ -99,9 +99,13 @@ so the default host ABI works on both x86_64 and arm64 machines.
 Test locations and conventions:
 - `core/*/src/test/kotlin/…`: JVM tests using `kotlin.test` (JUnit 4 runner). Prefer putting
   logic and tests here.
-- `app/src/test/java/…`: JVM unit tests for app code (JUnit 4). `unitTests.isIncludeAndroidResources`
-  is enabled, so Robolectric can be added when needed.
-- `app/src/androidTest/java/…`: instrumented tests (AndroidX Test / Compose UI test).
+- `app/src/test/java/…`: JVM unit tests for app code (JUnit 4). Keep playback logic (browse tree,
+  queues, voice search, completion rules) pure Kotlin so it's tested here without Android.
+  Robolectric tests (Room, `PackImporter`) run at SDK 35 (`app/src/test/resources/robolectric.properties`).
+- `app/src/androidTest/java/…`: instrumented tests (AndroidX Test). They run against the real Hilt
+  graph and reach singletons through `DebugEntryPoint` (`app/src/debug`).
+- `app/src/sharedTest/java/…`: helpers for both of the above, e.g. `MiniPack`, which generates a tiny
+  silent BSB-shaped pack (synthetic MP3s plus a manifest from the importer pipeline).
 - Reports: `<module>/build/reports/tests/…/index.html`; XML in `<module>/build/test-results/`.
 
 ## Run & debug on an emulator / device
@@ -135,12 +139,18 @@ AD-14 in spec 0000.
 
 ```bash
 android preview list "?:app"
-android preview render "?:app" --fqn=com.openbibleaudio.openbibleaudio.MainActivityKt.GreetingPreview --output=<dir>
+android preview render "?:app" --fqn=<fully qualified preview function> --output=<dir>
 ```
 
 Write output to a scratch/temp directory, not inside the repo.
 
 ## Known gotchas
+
+- With AGP 9's built-in Kotlin, add extra Kotlin source folders with `kotlin.directories`, not
+  `java.directories` (the latter isn't compiled as Kotlin).
+- Media3 session/extractor APIs used for Auto (content-style extras, CBR seeking, button slots,
+  `setPlaybackException`) are `@UnstableApi`. Opt in at class level (`@OptIn(UnstableApi::class)`),
+  or lint fails.
 
 - `./gradlew tasks --all` fails while configuring the **release** variant's Compose Preview task
   (release unit tests are disabled by default in AGP 9). It's harmless and only affects task
