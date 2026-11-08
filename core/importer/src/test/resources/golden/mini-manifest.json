@@ -1,0 +1,63 @@
+{
+  "formatVersion": 1,
+  "bible": {
+    "versionId": "bsb-gilbert",
+    "abbreviation": "BSB",
+    "name": "Berean Standard Bible",
+    "language": "en",
+    "versification": "eng"
+  },
+  "generator": {
+    "tool": "openbibleaudio-importer-cli",
+    "toolVersion": "0.1.0",
+    "profile": "bsb-gilbert"
+  },
+  "files": [
+    {
+      "path": "BSB_01_Gen_001_G.mp3",
+      "sizeBytes": 6334,
+      "sha256": "0eeec0a98683c89ad572beedc0f06517df62e28ffc03c99c1b6257a48c35890a",
+      "durationMs": 261
+    },
+    {
+      "path": "BSB_01_Gen_002_G.mp3",
+      "sizeBytes": 12594,
+      "sha256": "5bb209723b73f60b2da6d36d5c1f9a7a803deb3a5527b76f2df620b6da7a4952",
+      "durationMs": 522
+    },
+    {
+      "path": "BSB_56_Tts_003_G.mp3",
+      "sizeBytes": 25114,
+      "sha256": "86d681830d9f3e1f9e649622ef3a0e6fcc6e645477054aa08e380b2cc5a2b367",
+      "durationMs": 1045
+    },
+    {
+      "path": "BSB_65_Jud_001_G.mp3",
+      "sizeBytes": 18854,
+      "sha256": "7396c39502bba4eaf4723cece7dcb452fe1e5e6bf7d9e42d246b8a5a20d22cd1",
+      "durationMs": 784
+    }
+  ],
+  "chapters": [
+    {
+      "book": "GEN",
+      "chapter": 1,
+      "file": "BSB_01_Gen_001_G.mp3"
+    },
+    {
+      "book": "GEN",
+      "chapter": 2,
+      "file": "BSB_01_Gen_002_G.mp3"
+    },
+    {
+      "book": "TIT",
+      "chapter": 3,
+      "file": "BSB_56_Tts_003_G.mp3"
+    },
+    {
+      "book": "JUD",
+      "chapter": 1,
+      "file": "BSB_65_Jud_001_G.mp3"
+    }
+  ]
+}

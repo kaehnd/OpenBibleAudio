@@ -25,3 +25,5 @@ dependencyResolutionManagement {
 rootProject.name = "OpenBibleAudio"
 include(":app")
 include(":core:model")
+include(":core:importer")
+include(":tools:importer-cli")
