@@ -66,13 +66,13 @@ whole index from `https://openbible.com/audio/gilbert/` into `bible_audio/bsb_gi
 | Property | Value |
 |---|---|
 | Files | 1189 MP3s, one per chapter, flat in one folder, no subfolders. That is the full 66-book Protestant canon. |
-| Total size | ≈ 5.8 GB (smallest ≈ 0.4 MB, largest ≈ 21 MB, PSA 119) |
+| Total size | 6.21 GB (5.8 GiB); smallest ≈ 0.4 MB (PSA 117), largest ≈ 21 MB (PSA 119). Total duration 71 h 52 m. |
 | Naming | `BSB_{order:2}_{abbr}_{chapter:3}_G.mp3`, e.g. `BSB_01_Gen_001_G.mp3`, `BSB_19_Psa_119_G.mp3`, `BSB_62_1Jn_005_G.mp3` |
 | `{order}` | 01–66, canonical order (same as `Book.ordinal + 1`) |
 | `{abbr}` | Mixed-case 3-character code. **All of them match the USFM code once uppercased, except `Tts` → `TIT`.** (`Sng`, `Ezk`, `Jol`, `Nam`, `Mrk`, `Jhn`, `Php`, `Jas`, `Jud` are all valid USFM.) |
-| Codec | MPEG-1 Layer III, **192 kbps CBR, 44.1 kHz, mono** |
+| Codec | MPEG-1 Layer III, **192 kbps CBR, 44.1 kHz, mono**. Every frame is 626 bytes with no padding, so the effective rate is ≈ 191.7 kbps. |
 | VBR header | **No Xing/Info/VBRI header.** The duration has to be computed by walking frames, or estimated from size ÷ bitrate. This matters for player seeking too (0002 §7.2). |
-| Tags | ID3v2.3 holding only a `PRIV` frame with Adobe XMP. There are no useful title, artist or album text frames, so the profile gets nothing from tags. |
+| Tags | A leading ID3v2.3 tag (8–18 KB) holding only a `PRIV` frame with Adobe XMP, and a trailing 128-byte ID3v1 tag. There are no useful title, artist or album text frames, so the profile gets nothing from tags. |
 
 The profile must handle both the regular `{abbr}` codes and the `Tts` exception through a
 general alias map, not a special case in code.
@@ -241,11 +241,16 @@ data class ValidationReport(val issues: List<Issue>) {
 |---|---|---|
 | `UNSUPPORTED_FORMAT` | ERROR | formatVersion ≠ 1 |
 | `BAD_VERSION_ID`, `BAD_LANGUAGE`, `BAD_FIELD_LENGTH`, `UNSUPPORTED_VERSIFICATION` | ERROR | §4.3 |
+| `EMPTY_PACK` | ERROR | `files[]` or `chapters[]` is empty |
 | `BAD_PATH`, `DUPLICATE_PATH`, `BAD_SIZE`, `BAD_HASH`, `BAD_DURATION` | ERROR | §4.4 |
 | `NO_SUCH_CHAPTER`, `DUPLICATE_CHAPTER`, `UNKNOWN_FILE`, `BAD_SPAN`, `OVERLAPPING_SPANS`, `SPAN_EXCEEDS_FILE` | ERROR | §4.5 |
 | `UNREFERENCED_FILE` | WARNING | §4.5 |
 | `NO_DURATION` | WARNING | a referenced file has no `durationMs` |
-| `MISSING_CHAPTERS` | INFO | one issue summarising the gaps as compact ranges, e.g. `missing: PSA 23; JHN 1–3; all of JUD` |
+| `MISSING_CHAPTERS` | INFO | one issue summarising the gaps as compact ranges, e.g. `missing: PSA 23; JHN 1-3, 5; all of JUD` (ASCII only, so it prints cleanly on any console) |
+
+`IssueCode` also holds the importer's codes, so the CLI and the app share one report type:
+`UNMATCHED_FILE` (W), `UNKNOWN_BOOK_ALIAS` (E), `PROFILE_CHECK_FAILED` (E), `MISSING_BIBLE_FIELD` (E),
+`READ_FAILED` (E), `PROBE_FAILED` (W), and the verifier codes in §6.7. Every code has a fixed severity.
 
 Checking a pack against actual files (existence, size, hash, duration) is in `:core:importer` (§6.7).
 
@@ -347,9 +352,9 @@ LayoutProfile(
 ```kotlin
 interface AudioProbe {
     /** False if this probe can't handle the file (the caller tries the next probe). */
-    fun accepts(entry: FileEntry): Boolean
-    /** Consumes the stream; must be usable as a sink in a single streaming pass (see 6.5). */
-    fun newSession(entry: FileEntry): ProbeSession
+    fun accepts(entry: FileEntry, localFile: Path?): Boolean
+    /** Fed the same bytes as the hasher, in one streaming pass (see 6.5). */
+    fun newSession(entry: FileEntry, localFile: Path?): ProbeSession
 }
 interface ProbeSession { fun update(buf: ByteArray, off: Int, len: Int); fun finish(): ProbeResult }
 sealed interface ProbeResult { data class Ok(val durationMs: Long) : ProbeResult; data class Failed(val reason: String) : ProbeResult }
@@ -376,7 +381,7 @@ bytes the hasher reads:
 
 **`FfprobeProbe`** (optional fallback for formats that aren't MP3). It's used only if `ffprobe` is
 on `PATH`, and it runs `ffprobe -v error -show_entries format=duration -of csv=p=0 <file>`.
-It works on a file path, so it only runs with `LocalFileTree` and not inside the streaming pass.
+It works on a file path (`FileTree.localPath`), so it only runs with `LocalFileTree`. Its session ignores the streamed bytes.
 If no probe accepts a file, `durationMs` is left out and the validator reports `NO_DURATION`.
 
 ### 6.5 Hashing and performance
@@ -428,7 +433,8 @@ importer-cli validate <packDir> [--no-hash]
 ```
 
 - **Output:** the issues grouped by severity, then a summary such as
-  `1189 chapters (66 books, complete) · 1189 files · <total size> · <total duration> · 0 errors, 0 warnings`.
+  `1189 chapters (66 books, complete), 1189 files, 6.21 GB, 71h 52m, 0 errors, 0 warnings`.
+  Output is ASCII-only.
 - **Exit codes:** `0` ok (warnings allowed), `1` validation errors, `2` usage or IO error.
 - **Writing is atomic:** the manifest is written to `manifest.json.tmp` and then moved into place.
   If there are errors, nothing is written.
@@ -460,17 +466,21 @@ All tests are JVM tests (`kotlin.test`).
   `Book`**: every file matches, and the result is complete. `Tts` → TIT. A wrong `order` fails the check.
   Files named `notes.txt` and `BSB_01_Gen_001_G (1).mp3` come out as `UNMATCHED_FILE`.
 - `ManifestBuilder`: sorting, and a duplicate chapter → error. **Golden test**: a small fixed tree
-  produces a manifest equal to the committed `src/test/resources/golden/mini-manifest.json`.
+  produces a manifest equal to the committed `src/test/resources/golden/mini-manifest.json`
+  (regenerate after an intentional change with `OBA_UPDATE_GOLDEN=1 ./gradlew :core:importer:test`).
 - Determinism: the same tree run with `jobs = 1` and with `jobs = 8` gives identical output.
 - `PackVerifier`: a missing file, a size mismatch and a hash mismatch.
 
-**Real-corpus test (opt-in).** `BsbCorpusTest` runs only when the system property
-`oba.corpus.bsb` (or the env var `OBA_CORPUS_BSB`) points at the downloaded folder, and is
-skipped otherwise. It asserts 1189 chapters, a complete canon, no errors, and every
-`durationMs` within ±1 % of `sizeBytes × 8 / 192 kbps` (this cross-checks the frame walker on real data).
+**Real-corpus test (opt-in).** `BsbCorpusTest` runs only when the Gradle property
+`oba.corpus.bsb` (`-Poba.corpus.bsb=<dir>`) or the env var `OBA_CORPUS_BSB` points at the
+downloaded folder, and is skipped otherwise. It asserts 1189 chapters, a complete canon, no
+issues, and every `durationMs` within 50 ms of an independent estimate: audio bytes (size minus
+the ID3v2 and ID3v1 tags) ÷ 626-byte frames × 1152 samples ÷ 44.1 kHz. This cross-checks the
+frame walker on real data.
 
-**`:tools:importer-cli`**: Clikt `test()`-based tests for exit codes, `--force`/`--dry-run`
-behaviour and the atomic write, using a temp directory of synthetic MP3s.
+**`:tools:importer-cli`**: tests through `runCli(args, out, err)` (which returns the exit
+code instead of exiting) for exit codes, `--force`/`--dry-run`/`--output`/`--no-hash`, the atomic
+write, and `validate` catching corruption and deleted files. They use a temp directory of synthetic MP3s.
 
 ---
 

@@ -19,10 +19,12 @@ which covers the vision, the numbered architectural decisions (AD-1 … AD-15) a
 | Module | Kind | Purpose |
 |---|---|---|
 | `:app` | Android application (Compose, Media3) | The app: playback service / Android Auto, import, plans, podcasts, UI |
-| `:core:model` | Pure Kotlin/JVM | Domain model shared with the importer CLI (books/canon, …). **No Android dependencies.** |
+| `:core:model` | Pure Kotlin/JVM | Domain model shared with the importer CLI (books/canon, pack manifest schema + validator, …). **No Android dependencies.** |
+| `:core:importer` | Pure Kotlin/JVM | Scans a folder with a layout profile and builds/verifies a pack manifest (AD-5, spec 0001). Test fixtures (`InMemoryFileTree`, synthetic MP3s) live in `src/testFixtures`. |
+| `:tools:importer-cli` | JVM application | CLI around `:core:importer`: `profiles`, `generate`, `validate` |
 
-Planned modules (per AD-12): `:core:importer`, `:tools:importer-cli`. Keep domain logic that
-doesn't need Android in pure-Kotlin modules so it can be unit-tested on the JVM.
+Keep domain logic that doesn't need Android in pure-Kotlin modules so it can be unit-tested on the JVM.
+All modules target JVM 17 (AD-1).
 
 Toolchain: AGP 9.5 (built-in Kotlin, KGP 2.2.10), Gradle 9.6 (wrapper), daemon JVM 25 (auto-provisioned
 via `gradle/gradle-daemon-jvm.properties`), compileSdk/targetSdk 37, minSdk 28. Dependency versions
@@ -48,14 +50,28 @@ live in `gradle/libs.versions.toml`. Add new dependencies there, not inline.
 android build "?:app:assembleDebug"  # same via Android CLI (any Gradle task works as the target)
 ```
 
+## Importer CLI (Audio Bible Packs)
+
+```bash
+python tools/download_bsb_gilbert.py                 # BSB test corpus → bible_audio/bsb_gilbert (gitignored, ~6 GB)
+./gradlew :tools:importer-cli:run --args="profiles"
+./gradlew :tools:importer-cli:run --args="generate bible_audio/bsb_gilbert --profile bsb-gilbert"
+./gradlew :tools:importer-cli:run --args="validate bible_audio/bsb_gilbert"
+```
+
+`run` resolves relative paths from the repo root. Exit codes: 0 ok, 1 validation errors, 2 usage/IO error.
+
 ## Test
 
 **Every change should keep `./gradlew test` green, and new logic should come with unit tests.**
 
 ```bash
-./gradlew test                       # ALL JVM unit tests: :core:model:test + :app:testDebugUnitTest
+./gradlew test                       # ALL JVM unit tests: :core:*, :tools:importer-cli and :app:testDebugUnitTest
 ./gradlew :core:model:test           # pure-Kotlin module tests (fast, no Android)
 ./gradlew :app:testDebugUnitTest     # app local unit tests (JVM)
+
+# Opt-in test against the real BSB corpus (skipped unless the folder is given)
+./gradlew :core:importer:test --tests "*BsbCorpusTest*" -Poba.corpus.bsb=<abs path>/bible_audio/bsb_gilbert
 
 # Single class / method (Gradle test filter; wildcards allowed)
 ./gradlew :core:model:test --tests "com.openbibleaudio.core.model.BookTest"
