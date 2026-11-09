@@ -36,10 +36,13 @@ tasks.named<JavaExec>("run") {
 
 dependencies {
     implementation(project(":core:importer"))
+    implementation(project(":core:podcast")) // plan from-feed / validate --feed (spec 0003 §4)
+    implementation(libs.kxml2)
     implementation(libs.clikt)
     implementation(libs.kotlinx.coroutines.core)
 
     testImplementation(testFixtures(project(":core:importer")))
+    testImplementation(testFixtures(project(":core:podcast")))
     testImplementation(libs.kotlin.test)
     testImplementation(libs.junit)
 }

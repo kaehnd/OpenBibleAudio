@@ -60,7 +60,7 @@ fun main(args: Array<String>) {
 /** Runs the CLI and returns the exit code instead of exiting. Used by tests. */
 fun runCli(args: List<String>, out: PrintStream, err: PrintStream, showProgress: Boolean = false): Int {
     val io = CliIo(out, err, showProgress)
-    val cli = ImporterCli().subcommands(ProfilesCommand(io), GenerateCommand(io), ValidateCommand(io))
+    val cli = ImporterCli().subcommands(ProfilesCommand(io), GenerateCommand(io), ValidateCommand(io), PlanCommand(io))
     return try {
         cli.parse(args)
         ExitCode.OK
@@ -76,7 +76,7 @@ fun runCli(args: List<String>, out: PrintStream, err: PrintStream, showProgress:
 class CliIo(val out: PrintStream, val err: PrintStream, val showProgress: Boolean)
 
 private class ImporterCli : CliktCommand(name = "importer-cli") {
-    override fun help(context: Context) = "Builds and checks Audio Bible Pack manifests (manifest.json)."
+    override fun help(context: Context) = "Builds and checks Audio Bible Pack manifests (manifest.json) and reading plans."
     override fun run() = Unit
 }
 

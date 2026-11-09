@@ -181,18 +181,25 @@ cleaner to parse than the PDF's table layout, and they are the same data (§2).
 ```bash
 ./gradlew :tools:importer-cli:run --args="plan from-feed https://feed.podbean.com/thebiblerecap/feed.xml \
     --id bible-recap-chronological --name 'The Bible Recap (Chronological)' \
+    --description 'A 365-day chronological reading plan with a daily recap podcast. Readings play in the listed order, followed by that day’s episode.' \
+    --source-url https://www.thebiblerecap.com \
     --match-title '^Day (\d{1,3}) \((.+)\)' --readings-group 2 --episode-type full \
-    --cycle itunesSeason --out plans/bible-recap-chronological.json"
-./gradlew :tools:importer-cli:run --args="plan validate plans/bible-recap-chronological.json"
+    --cycle itunesSeason --fallback-cycle-regex '-\s*Year\s+(\d+)\s*$' \
+    --out plans/bible-recap-chronological.json"
+./gradlew :tools:importer-cli:run --args="plan validate plans/bible-recap-chronological.json \
+    --feed https://feed.podbean.com/thebiblerecap/feed.xml --readings-group 2"
 ```
+
+(`SOURCE` may also be a saved `feed.xml`; then `--feed-url` gives the URL to store in the plan.)
 
 - `from-feed` takes a URL or a local `feed.xml`. It builds the readings from the most recent
   complete cycle, and **fails if any other complete cycle in the feed disagrees** on any day's
   readings (the check that found 0 differences in §2). It prints a per-cycle summary
   (`Year 7: 365/365 days, 2.75 GB`).
 - `validate` runs `PlanValidator`. When `--feed` is given, it also runs the matcher (§7) and
-  reports per-cycle coverage, unmatched days and duplicates. Exit codes match the pack commands
-  (0 / 1 / 2).
+  reports per-cycle coverage, the cycle new enrollments would use, unmatched days and duplicates.
+  With `--readings-group N` it also compares each matched title's readings with the plan and
+  fails on any disagreement. Exit codes match the pack commands (0 / 1 / 2).
 - The output, `plans/bible-recap-chronological.json`, is committed in the repo (a new top-level
   `plans/` folder). Whether the app may *bundle* it is open question 1. Until that's settled, the user
   imports it like any other plan.
@@ -542,7 +549,10 @@ Strings live in `strings.xml`. The plan name, episode titles and readings are us
   `:tools:importer-cli`. Its parser is written against the `org.xmlpull.v1` API. Android provides
   that API, and the JVM (tests, CLI) gets it from `net.sf.kxml:kxml2`, which is declared
   `compileOnly` + `testImplementation` in `:core:podcast` and `implementation` in the CLI, so the
-  app never bundles a second copy. The parser takes an `XmlPullParserFactory`.
+  app never bundles a second copy. `FeedParser.parse` takes an `XmlPullParser` instance
+  (`Xml.newPullParser()` on Android, `KXmlParser()` on the JVM). It parses strict XML on purpose
+  and requires the closing `</rss>`, so a truncated download fails instead of looking like a feed
+  whose old items were removed (§7.3).
 
 ---
 
