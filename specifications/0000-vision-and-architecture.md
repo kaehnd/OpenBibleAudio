@@ -90,9 +90,13 @@ bible/{versionId}/{testament}          # OT | NT
 bible/{versionId}/{BOOK}               # e.g. bible/csb/GEN
 bible/{versionId}/{BOOK}/{from}-{to}   # chapter group for long books, e.g. bible/bsb-gilbert/PSA/51-100 (spec 0002 §7.4)
 bible/{versionId}/{BOOK}/{chapter}     # playable
-plan/{enrollmentId}                    # list of days
+today                                  # Today tab (spec 0003 §9.1)
+plan                                   # Plans tab
+plan/{enrollmentId}                    # enrollment: today + day groups
 plan/{enrollmentId}/today              # playable: plan day queue for current day
+plan/{enrollmentId}/days/{from}-{to}   # day group (spec 0003 §3.4)
 plan/{enrollmentId}/day/{n}            # playable
+plan/{enrollmentId}/day/{n}/{i}        # playable: item i of a day queue (all plan queue items use this)
 podcast/{feedId}/{episodeGuidHash}     # playable
 ```
 
@@ -200,11 +204,15 @@ Sketch of format version 1. The full, normative schema is in
   "podcast": {                                   // optional
     "feedUrl": "https://…/rss",
     "position": "afterReadings",
-    "match": { "titleRegex": "^Day (\\d{1,3})\\b", "dayGroup": 1 },
-    "overrides": { "60": { "guid": "…" } }       // pin specific days when titles misbehave
+    "match": { "episodeType": "full", "titleRegex": "^Day (\\d{1,3}) \\(", "dayGroup": 1 },
+    "cycle": { "key": "itunesSeason", "select": "latestComplete" },   // optional; recurring feeds
+    "overrides": { "7/60": { "guid": "…" } }     // "{cycle}/{day}": pin days when titles misbehave
   }
 }
 ```
+
+The full schema is in [spec 0003 §3.1](0003-phase-2-3-reading-plans-and-podcasts.md). Readings
+play in the listed order (chronological plans aren't canonical), and `to` is optional.
 
 - Readings support whole chapters now. The model leaves room for verse-range readings
   (`"from": "1:1", "to": "2:3"`) once verse timing exists (Phase 4). Until then, a verse range
@@ -220,9 +228,15 @@ Sketch of format version 1. The full, normative schema is in
 - An RSS fetcher (OkHttp plus `XmlPullParser`) refreshes linked feeds and matches episodes to
   plan days with the plan's rule. Ambiguous or unmatched days show up in the phone UI for
   manual pinning.
-- A periodic `WorkManager` job **pre-downloads episodes for the next N days** of each active
-  enrollment (default 7, configurable). It can be limited to unmetered networks, cleans up
-  played episodes after a retention window, and stores files under `filesDir/podcasts/`.
+- **Cycles.** Some feeds re-publish the same plan every year (*The Bible Recap*: one `itunes:season`
+  per year). Episodes are grouped into cycles, and an enrollment **pins one cycle**, by default
+  the latest cycle that is complete in the feed, so a listener starting mid-year starts at Day 1
+  of a whole year. Matched episodes are snapshotted in the DB and never deleted while an
+  enrollment references them, because feeds drop old items (TBR keeps the 999 newest).
+- A `WorkManager` job pre-downloads episodes per enrollment in one of three modes: **ALL** (the
+  whole cycle, e.g. a full year ≈ 2.75 GB), **ROLLING** (the next N days, default 14) or **OFF**.
+  It can be limited to unmetered networks, cleans up played episodes after a retention window,
+  and stores files under `filesDir/podcasts/`.
 - Playback of a plan day **never streams by default**. If an episode isn't downloaded yet, the
   queue plays the readings and Auto shows the episode as unavailable. A setting allows
   streaming as a fallback.
@@ -254,6 +268,7 @@ more Gradle modules only when build time or boundaries call for it.
 ```
 :core:model        (Kotlin/JVM)  BookId/canon, references, media-ID grammar, manifest & plan schemas
 :core:importer     (Kotlin/JVM)  FileTree, layout profiles, AudioProbe, manifest builder
+:core:podcast      (Kotlin/JVM)  RSS parser, episode→day matcher, cycle selection (spec 0003)
 :tools:importer-cli(Kotlin/JVM)  CLI wrapper around :core:importer
 :app               (Android)     packages:
     data/          Room DB, DAOs, repositories, DataStore
@@ -314,13 +329,17 @@ of the CSB. Phase 1 is split into two specs:
 - **Exit criterion:** pick Genesis 1 in Auto (DHU), listen through to Genesis 2, kill the app,
   and resume from the steering wheel.
 
+Phases 2 and 3 share [spec 0003](0003-phase-2-3-reading-plans-and-podcasts.md) and ship as
+milestones M2 and M3.
+
 ### Phase 2 — Reading plans
-- Plan JSON format and in-app plan import. A Bible Recap plan definition is authored (§6).
+- Plan JSON format and in-app plan import. The Bible Recap plan is generated from the feed's
+  episode titles by the CLI (`plan from-feed`) and checked against the published PDF.
 - Enrollment, progress, "N days behind", a **Today** tab in Auto, and plan-day queues.
 
 ### Phase 3 — Companion podcasts
-- RSS fetch and episode→day matching, manual pinning UI, pre-download worker, retention, and
-  per-episode resume.
+- RSS fetch, episode→day matching with cycles, manual pinning UI, pre-download worker (whole
+  cycle or rolling), retention, and per-episode resume.
 - Plan-day queue = readings + downloaded episode.
 - **Exit criterion:** in airplane mode, "Today" in Auto plays the day's chapters and then the
   matching Bible Recap episode.
@@ -359,6 +378,7 @@ of the CSB. Phase 1 is split into two specs:
 | 2026-11-08 | AD-1 … AD-15 adopted | Initial architecture. Copy-into-app-storage with optional move (AD-6), shared Kotlin importer (AD-5), plan-linked RSS only (AD-9), Play Store as eventual target (AD-14). |
 | 2026-11-08 | Phase 1 split into 1a/1b; BSB replaces CSB as Phase 1 corpus | Specs 0001 and 0002. The CSB profile moves to Phase 5. AD-5: the first profile is `bsb-gilbert`, profiles are compiled-in Kotlin data, and the CLI's `AudioProbe` is a built-in MP3 frame scanner (the BSB files are CBR MP3 with no Xing header, and ffprobe isn't assumed). |
 | 2026-11-08 | AD-3: chapter-group node | Adds `bible/{v}/{BOOK}/{from}-{to}` so long chapter lists (PSA, ISA) stay within Auto list limits (spec 0002 §7.4). |
+| 2026-11-08 | AD-3, AD-8, AD-9, AD-12: plans & podcast cycles | Spec 0003. The Bible Recap republishes the same 365 episodes every year and its feed keeps only the 999 newest items, so: episodes are grouped into cycles (`itunes:season`), an enrollment pins one (default: latest complete, e.g. 2025), matched episodes are snapshotted, and download modes are ALL / ROLLING (14) / OFF instead of "next 7 days". New IDs `today`, `plan`, `plan/{e}/days/{from}-{to}`, `plan/{e}/day/{n}/{i}`. New module `:core:podcast`. Phases 2–3 share one spec. |
 
 ---
 
@@ -366,11 +386,9 @@ of the CSB. Phase 1 is split into two specs:
 
 1. **CSB file layout.** What are the exact folder and file naming conventions, and the format
    (MP3? bitrate?) of the CSB set? Now needed for Phase 5; Phase 1 uses the BSB corpus.
-2. **Bible Recap plan data.** Author the day→chapters definition by hand from the published
-   plan, or derive it from the podcast episode titles? Can a definition be redistributed in a
-   Play build, or should it stay user-imported?
-3. **Bible Recap feed.** Confirm the RSS URL and episode-title conventions (day numbering,
-   special or bonus episodes, year-to-year reuse) for the matching rule.
+2. ~~**Bible Recap plan data.**~~ Derived from the episode titles by the CLI and checked against
+   the PDF (spec 0003 §4). Redistribution in a Play build is still open (spec 0003 open question 1).
+3. ~~**Bible Recap feed.**~~ Resolved: see spec 0003 §2.
 4. **Continuous-play boundary.** Should play stop at the end of the book or continue into the
    next book? (Default: end of book, with a setting.)
 5. **Verse timing source** (Phase 4): vendor timing data, an open alignment dataset, or our
