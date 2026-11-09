@@ -43,6 +43,18 @@ enum class IssueCode(val severity: Severity) {
     SIZE_MISMATCH(Severity.ERROR),
     HASH_MISMATCH(Severity.ERROR),
     DURATION_MISMATCH(Severity.WARNING),
+
+    // Reading plans (spec 0003 §3.2). UNSUPPORTED_FORMAT, BAD_FIELD_LENGTH and NO_SUCH_CHAPTER are shared.
+    BAD_PLAN_ID(Severity.ERROR),
+    BAD_PLAN_VERSION(Severity.ERROR),
+    EMPTY_PLAN(Severity.ERROR),
+    BAD_DAY_NUMBER(Severity.ERROR),
+    EMPTY_DAY(Severity.ERROR),
+    BAD_RANGE(Severity.ERROR),
+    BAD_FEED_URL(Severity.ERROR),
+    BAD_REGEX(Severity.ERROR),
+    BAD_OVERRIDE(Severity.ERROR),
+    PARTIAL_COVERAGE(Severity.INFO),
 }
 
 /** [pointer] locates the issue, e.g. `chapters[12]` or a file path. */

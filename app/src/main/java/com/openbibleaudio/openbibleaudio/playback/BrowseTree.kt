@@ -62,6 +62,9 @@ class BrowseTree(private val titles: BrowseTitles) {
                 .ifEmpty { null }
         }
         is MediaId.Chapter -> null
+        // Plan & podcast nodes (spec 0003 §9.1) aren't served yet.
+        MediaId.Today, MediaId.Plans, is MediaId.Enrollment, is MediaId.EnrollmentToday, is MediaId.DayGroup,
+        is MediaId.PlanDay, is MediaId.PlanItem, is MediaId.Episode -> null
     }
 
     /** The node for [id] itself (Auto's onGetItem after process death), or null if it doesn't exist. */
@@ -86,6 +89,8 @@ class BrowseTree(private val titles: BrowseTitles) {
         is MediaId.Chapter -> snap.version(id.versionId)
             ?.takeIf { snap.has(id.versionId, id.ref) }
             ?.let { chapterNode(id.versionId, id.ref, short = false) }
+        MediaId.Today, MediaId.Plans, is MediaId.Enrollment, is MediaId.EnrollmentToday, is MediaId.DayGroup,
+        is MediaId.PlanDay, is MediaId.PlanItem, is MediaId.Episode -> null
     }
 
     private fun testaments(versionId: String, snap: LibrarySnapshot): List<BrowseNode> =

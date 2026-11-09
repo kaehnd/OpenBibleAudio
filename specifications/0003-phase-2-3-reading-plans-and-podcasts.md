@@ -134,8 +134,9 @@ and deterministic like `PackManifestCodec`).
 Errors: unsupported `formatVersion`; bad `id`; `days` not exactly `1..N` with no gaps or
 duplicates; a day with no readings; an unknown book; a chapter outside `Book.chapterCount`;
 `from > to`; a regex that doesn't compile or lacks `dayGroup`; an override day outside `1..N`; a
-`feedUrl` that isn't `https`. Warnings: a book not covered at all (informational, for whole-Bible
-plans); total chapters ≠ 1189. The TBR plan covers all 1189 chapters exactly once, and the CLI
+`feedUrl` that isn't `https`. Info (`PARTIAL_COVERAGE`): the plan doesn't read every chapter
+exactly once. The note gives the chapter count, repeats and books not read. Partial plans are
+fine, so this is never an error or warning. The TBR plan covers all 1189 chapters exactly once, and the CLI
 test checks that.
 
 ### 3.3 `ReadingListParser`
