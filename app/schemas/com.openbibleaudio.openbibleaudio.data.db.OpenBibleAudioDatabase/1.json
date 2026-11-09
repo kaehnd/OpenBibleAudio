@@ -1,0 +1,319 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "8a50be686ca60c92319607d5afa7c301",
+    "entities": [
+      {
+        "tableName": "bible_version",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`versionId` TEXT NOT NULL, `abbreviation` TEXT NOT NULL, `name` TEXT NOT NULL, `language` TEXT NOT NULL, `versification` TEXT NOT NULL, `narrator` TEXT, `attribution` TEXT, `state` TEXT NOT NULL, `totalBytes` INTEGER NOT NULL, `importedAt` INTEGER, `sourceTreeUri` TEXT, `moveSource` INTEGER NOT NULL, `failureReason` TEXT, PRIMARY KEY(`versionId`))",
+        "fields": [
+          {
+            "fieldPath": "versionId",
+            "columnName": "versionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "abbreviation",
+            "columnName": "abbreviation",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "language",
+            "columnName": "language",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "versification",
+            "columnName": "versification",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "narrator",
+            "columnName": "narrator",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "attribution",
+            "columnName": "attribution",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalBytes",
+            "columnName": "totalBytes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "importedAt",
+            "columnName": "importedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "sourceTreeUri",
+            "columnName": "sourceTreeUri",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "moveSource",
+            "columnName": "moveSource",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "failureReason",
+            "columnName": "failureReason",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "versionId"
+          ]
+        }
+      },
+      {
+        "tableName": "audio_file",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `versionId` TEXT NOT NULL, `path` TEXT NOT NULL, `sizeBytes` INTEGER NOT NULL, `sha256` TEXT, `durationMs` INTEGER, `imported` INTEGER NOT NULL, FOREIGN KEY(`versionId`) REFERENCES `bible_version`(`versionId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "versionId",
+            "columnName": "versionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "path",
+            "columnName": "path",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sizeBytes",
+            "columnName": "sizeBytes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sha256",
+            "columnName": "sha256",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "durationMs",
+            "columnName": "durationMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "imported",
+            "columnName": "imported",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_audio_file_versionId_path",
+            "unique": true,
+            "columnNames": [
+              "versionId",
+              "path"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_audio_file_versionId_path` ON `${TABLE_NAME}` (`versionId`, `path`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "bible_version",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "versionId"
+            ],
+            "referencedColumns": [
+              "versionId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "chapter_audio",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`versionId` TEXT NOT NULL, `book` TEXT NOT NULL, `chapter` INTEGER NOT NULL, `fileId` INTEGER NOT NULL, `startMs` INTEGER NOT NULL, `endMs` INTEGER, `durationMs` INTEGER, PRIMARY KEY(`versionId`, `book`, `chapter`), FOREIGN KEY(`versionId`) REFERENCES `bible_version`(`versionId`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`fileId`) REFERENCES `audio_file`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "versionId",
+            "columnName": "versionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "book",
+            "columnName": "book",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chapter",
+            "columnName": "chapter",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fileId",
+            "columnName": "fileId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startMs",
+            "columnName": "startMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endMs",
+            "columnName": "endMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "durationMs",
+            "columnName": "durationMs",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "versionId",
+            "book",
+            "chapter"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_chapter_audio_fileId",
+            "unique": false,
+            "columnNames": [
+              "fileId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_chapter_audio_fileId` ON `${TABLE_NAME}` (`fileId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "bible_version",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "versionId"
+            ],
+            "referencedColumns": [
+              "versionId"
+            ]
+          },
+          {
+            "table": "audio_file",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "fileId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "chapter_completion",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `versionId` TEXT NOT NULL, `book` TEXT NOT NULL, `chapter` INTEGER NOT NULL, `completedAt` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "versionId",
+            "columnName": "versionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "book",
+            "columnName": "book",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chapter",
+            "columnName": "chapter",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completedAt",
+            "columnName": "completedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_chapter_completion_versionId_book_chapter",
+            "unique": false,
+            "columnNames": [
+              "versionId",
+              "book",
+              "chapter"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_chapter_completion_versionId_book_chapter` ON `${TABLE_NAME}` (`versionId`, `book`, `chapter`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '8a50be686ca60c92319607d5afa7c301')"
+    ]
+  }
+}

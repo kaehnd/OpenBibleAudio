@@ -109,12 +109,13 @@ sealed interface MediaId {
 | UI | `androidx.navigation:navigation-compose`, `androidx.lifecycle:lifecycle-viewmodel-compose`, `lifecycle-runtime-compose` |
 | SAF | `androidx.documentfile:documentfile` |
 | Shared | `project(":core:model")` (already transitively has `kotlinx-serialization-json`) |
+| Futures | `org.jetbrains.kotlinx:kotlinx-coroutines-guava` (Media3 callbacks return `ListenableFuture`s) |
 | Tests | `org.robolectric:robolectric`, `kotlinx-coroutines-test`, `androidx.work:work-testing`, `media3-test-utils` |
 
-Plugins: `com.google.devtools.ksp` and `com.google.dagger.hilt.android`. **Check KSP and Hilt
-compatibility with AGP 9.5's built-in Kotlin (KGP 2.2.10) first**. If the KSP version for
-2.2.10 doesn't work with built-in Kotlin, record the workaround in AGENTS.md "Known gotchas".
-Existing old pins (`coreKtx 1.10.1`, `lifecycle 2.6.1`, `activityCompose 1.8.0`) get bumped as needed.
+Plugins: `com.google.devtools.ksp`, `com.google.dagger.hilt.android` and `androidx.room` (schema
+directory). **Confirmed working with AGP 9.5's built-in Kotlin (KGP 2.2.10): KSP 2.3.13 and
+Hilt 2.60.1.** All Media3 artifacts come from the version catalog (they were inline before).
+The old pins (`coreKtx`, `lifecycle`, `activityCompose`, AndroidX Test) were bumped.
 
 ---
 
@@ -129,6 +130,7 @@ bible_version
   totalBytes INTEGER, importedAt INTEGER?  (epoch ms; null until READY)
   sourceTreeUri TEXT?                      -- persisted SAF grant while IMPORTING; cleared on READY
   moveSource INTEGER (bool)
+  failureReason TEXT?                      -- why the last attempt failed; shown on the Library card
 
 audio_file
   id INTEGER PK autoinc, versionId FK→bible_version ON DELETE CASCADE,
@@ -300,7 +302,7 @@ root
   `…_BROWSABLE = LIST_ITEM` extras on the root `LibraryParams`, and on book and group nodes with
   `DESCRIPTION_EXTRAS_KEY_CONTENT_STYLE_PLAYABLE = GRID_ITEM`, so chapter numbers show as a grid.
   Chapter grid items use the title "1", "2", …. The full "Genesis 1" goes in now-playing metadata only.
-- **No READY versions:** `bible` returns a single non-playable, non-browsable item:
+- **No READY versions:** `bible` returns a single non-playable, non-browsable item (ID `info/no-library`):
   *"No Bible imported. Open OpenBibleAudio on your phone to import one."*
 - The service observes `LibraryRepository.versions` and calls `notifyChildrenChanged` for `bible`
   (and the affected version) when an import finishes or a version is deleted (AD-13).
@@ -350,6 +352,9 @@ these rows in Phase 1 other than a debug count on the Library card; Phase 2 plan
   `"Audio for Genesis 3 is missing. Re-import BSB."` Auto shows it, playback stops, and the error
   is logged with the mediaId.
 - If a version is deleted while the queue is playing from it: stop and clear the queue.
+- User-facing errors (missing audio, a voice query that doesn't match) are published with
+  `MediaSession.setPlaybackException`, so Auto shows or speaks the message. The error is cleared
+  once playback starts again.
 
 ---
 
@@ -367,8 +372,12 @@ singleton that exposes `StateFlow`s of current item, position, isPlaying, speed 
 | **Mini-player** | On every screen except Now Playing whenever something is loaded; tapping it opens Now Playing |
 | **Settings** | Continuous-play scope (end of book / end of Bible), seek increments (5/10/15/30 s), "Verify file hashes on import", and an About page that lists each version's attribution |
 
-All strings live in `strings.xml`, including the 66 localised book names (`book_GEN`, …). There
-are no hard-coded user-visible strings. Layout supports dark theme and font scaling; the UI isn't
+All strings live in `strings.xml`. The 66 localised book names are a `string-array`
+(`book_names`) in canonical order, indexed by `Book.ordinal`; that avoids looking up resources by
+name. There are no hard-coded user-visible strings.
+
+`MainActivity` also declares `MEDIA_PLAY_FROM_SEARCH` (lint requires it for media apps with voice
+search). It passes the query to the session as a `searchQuery` request, which goes through §7.7. Layout supports dark theme and font scaling; the UI isn't
 polished in this phase.
 
 ---
@@ -413,21 +422,28 @@ class implements `Configuration.Provider` (the default WorkManager initializer i
 
 ### 10.2 Robolectric / instrumented
 - Room DAO tests, and a schema-export check (`app/schemas/…/1.json` committed).
-- `ImportWorker` with `work-testing`, against a `PackSource` abstraction (`SafPackSource` in
-  production, `FilePackSource` in tests): a happy path, a size mismatch, a hash mismatch, resume
-  after a simulated crash midway (some files `imported=true`), move deleting each source right
-  after its copy, and cancel.
-- **Browse-tree integration** (instrumented, managed device): connect a `MediaBrowser` to the
-  service with the mini pack imported. Check root → bible → OT → GEN → chapter grid, `onGetItem`
-  after a service restart, and that `setMediaItems(chapter id only)` plays and advances to the next chapter.
+- The import logic lives in `PackImporter`. `ImportWorker` only adds the notification, progress
+  and retry policy. `PackImporter` is tested with Robolectric, an in-memory Room DB and
+  `FilePackSource` (production uses `SafPackSource`). The tests cover a happy path, a size mismatch,
+  a hash mismatch, resume after a simulated crash midway (some files `imported=true`), move
+  deleting each source right after its copy, cancel, probing missing durations, and delete.
+  The worker itself is covered end to end by the instrumented test below.
+- **End-to-end** (instrumented, managed device, `PlaybackServiceTest`): import the mini pack
+  through `ImportController` → `ImportWorker` (a `file://` source), then connect a `MediaBrowser`.
+  Check root → bible → OT → GEN → chapters and `onGetItem`, and that `setMediaItems(chapter id only)`
+  queues the rest of the book, plays, and advances to the next chapter. The test reaches app
+  singletons through a debug-only Hilt `DebugEntryPoint` (`app/src/debug`).
 
 ### 10.3 Mini pack fixture
-`app/src/androidTest/assets/packs/mini/`: about 6 tiny CC0 MP3s (1–2 s of tone, 32 kbps CBR, no
-Xing header, to match the BSB shape) for GEN 1–3, PSA 1, JUD 1 and REV 22, plus a `manifest.json`
-generated **with the 0001 CLI**. That also checks that the CLI and the app agree. The fixture
-needs a profile for these filenames: it uses BSB-style names (`BSB_01_Gen_001_G.mp3`) so the
-`bsb-gilbert` profile applies unchanged. The ffmpeg command used to make the files is recorded
-in a `README.md` next to them.
+`MiniPack` (`app/src/sharedTest`, used by both JVM and instrumented tests) **generates** the pack
+at test time, so no audio is committed and no ffmpeg is needed:
+- The files are synthetic MPEG-1 192 kbps mono CBR MP3s with no Xing header (the BSB shape),
+  built with `Mp3Fixtures` from `:core:importer`'s test fixtures. Their frames have zeroed side
+  info and payload, which decodes as silence. About 40 frames make 1 s.
+- They use BSB-style names (`BSB_01_Gen_001_G.mp3`), so the `bsb-gilbert` profile applies unchanged.
+- The manifest is built by `ImporterPipeline`, the code behind the 0001 CLI, so the CLI and the
+  app have to agree.
+- The instrumented test uses GEN 1–3, PSA 1, JUD 1 and REV 22, under `versionId` `test-mini`.
 
 ### 10.4 DHU checklist (manual, run before marking the phase done)
 1. Fresh install, no library: Auto shows the app, and Bible shows the "No Bible imported" item.
@@ -471,5 +487,7 @@ in a `README.md` next to them.
    Auto's own now-playing view cover it.)
 3. **Hash verification time on device** (see 0001 open question 3). Measure the BSB import time
    with hashing on and off on a mid-range phone, and decide the default for `verifyHashesOnImport`.
-4. **KSP/Hilt on AGP 9 built-in Kotlin.** Confirm a working combination (§4). If Hilt is blocked,
-   fall back to manual DI for this phase and record that as an AD-13 amendment.
+4. ~~**KSP/Hilt on AGP 9 built-in Kotlin.**~~ Resolved: KSP 2.3.13 + Hilt 2.60.1 work (§4).
+5. **Seek increments** are fixed when `ExoPlayer` is built, so changing them applies the next
+   time the service starts (the Settings screen says so). Making seek back/forward custom
+   session commands would apply changes immediately, if that turns out to matter.
