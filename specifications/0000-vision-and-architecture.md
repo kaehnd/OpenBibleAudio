@@ -88,6 +88,7 @@ bible                                  # versions (or skip straight to books if 
 bible/{versionId}
 bible/{versionId}/{testament}          # OT | NT
 bible/{versionId}/{BOOK}               # e.g. bible/csb/GEN
+bible/{versionId}/{BOOK}/{from}-{to}   # chapter group for long books, e.g. bible/bsb-gilbert/PSA/51-100 (spec 0002 §7.4)
 bible/{versionId}/{BOOK}/{chapter}     # playable
 plan/{enrollmentId}                    # list of days
 plan/{enrollmentId}/today              # playable: plan day queue for current day
@@ -99,7 +100,8 @@ The ID grammar lives in `:core:model` and is unit-tested in both directions (for
 
 **Browse tree (Auto):** root tabs = **Today** (one item per active enrollment, plus "Continue
 listening"), **Bible**, **Plans**. Auto limits depth and list length, so the 66-book list is split by
-testament, and long chapter lists (Psalms) use grid content-style hints.
+testament. Chapter lists use grid content-style hints, and books with more than 50 chapters
+(Psalms, Isaiah) are split into chapter groups.
 
 ### AD-4 — The Audio Bible Pack manifest is the import contract
 The app never guesses at file layouts during import. It imports an **Audio Bible Pack**: a
@@ -107,7 +109,8 @@ folder containing audio files plus `manifest.json`. Everything vendor-specific l
 importer that *produces* the manifest (AD-5). This keeps the app's import path small and
 testable, and lets the same app code import packs produced by any tool.
 
-Sketch of format version 1 (the full schema belongs in the Phase 1 spec):
+Sketch of format version 1. The full, normative schema is in
+[spec 0001 §4](0001-phase-1a-audio-bible-pack-and-importer.md):
 
 ```jsonc
 {
@@ -144,9 +147,11 @@ Sketch of format version 1 (the full schema belongs in the Phase 1 spec):
     `java.io.File` (CLI) and, later, SAF `DocumentFile` (on-device import).
   - **Layout profiles** turn vendor layouts into book/chapter. A profile is mainly declarative
     (filename/folder regexes plus book-name aliases) with a code escape hatch for odd cases.
-    Phase 1 ships one profile: the user's CSB layout.
-  - Durations come from a pluggable `AudioProbe`. The CLI can use a JVM library or `ffprobe`;
-    on device, `MediaMetadataRetriever`.
+    Phase 1 ships one profile, `bsb-gilbert` (the BSB test corpus). Profiles are compiled-in
+    Kotlin data for now. The CSB profile follows in Phase 5.
+  - Durations come from a pluggable `AudioProbe`. The CLI uses a built-in pure-Kotlin MP3
+    frame scanner, with `ffprobe` as an optional fallback for other formats. On device it's
+    `MediaMetadataRetriever`.
 - `:tools:importer-cli` is a JVM application (`./gradlew :tools:importer-cli:run --args=…`) that
   writes `manifest.json` into the source folder, ready for the user to copy to the phone.
 - Verse timing (Phase 4) plugs in as another importer stage that fills in `chapters[].verses`.
@@ -292,9 +297,17 @@ more Gradle modules only when build time or boundaries call for it.
 Each phase gets its own spec before implementation starts. A phase is "done" when its spec's
 acceptance criteria pass, including a DHU walkthrough where relevant.
 
-### Phase 1 — Play my CSB Bible in the car (MVP)
-- `:core:model` (books, references, media IDs, manifest schema) and `:core:importer` with a CSB layout profile.
-- `:tools:importer-cli` generates `manifest.json` for the user's CSB files.
+### Phase 1 — Play my Bible in the car (MVP)
+Development uses the openly available **BSB (Gilbert)** recording as the test corpus in place
+of the CSB. Phase 1 is split into two specs:
+
+**Phase 1a — Audio Bible Pack & importer** ([spec 0001](0001-phase-1a-audio-bible-pack-and-importer.md))
+- Manifest format v1, `:core:model` manifest schema and validator, and `:core:importer` with the `bsb-gilbert` layout profile.
+- `:tools:importer-cli` generates and validates `manifest.json` for the BSB files.
+- **Exit criterion:** the CLI produces a complete, valid, deterministic manifest for the BSB corpus.
+
+**Phase 1b — In-app import & playback** ([spec 0002](0002-phase-1b-import-and-playback.md))
+- `:core:model` media IDs and reference parser.
 - In-app pack import via SAF with copy / **move** (AD-6), and a library screen.
 - `PlaybackService` with the Bible browse tree, chapter playback with continuous play,
   resumption, and a minimal now-playing screen on the phone.
@@ -319,7 +332,8 @@ acceptance criteria pass, including a DHU walkthrough where relevant.
 - Verse-range readings in plans.
 
 ### Phase 5 — Robust importing
-- More layout profiles and a profile-authoring guide.
+- More layout profiles (starting with the user's **CSB** set) and a profile-authoring guide,
+  possibly with external (JSON) profile files.
 - **On-device import of a folder without a manifest**, running `:core:importer` over SAF.
 - Book-per-file and multi-file-per-chapter layouts; multiple versions side by side.
 
@@ -343,13 +357,15 @@ acceptance criteria pass, including a DHU walkthrough where relevant.
 | Date | Decision | Notes |
 |---|---|---|
 | 2026-11-08 | AD-1 … AD-15 adopted | Initial architecture. Copy-into-app-storage with optional move (AD-6), shared Kotlin importer (AD-5), plan-linked RSS only (AD-9), Play Store as eventual target (AD-14). |
+| 2026-11-08 | Phase 1 split into 1a/1b; BSB replaces CSB as Phase 1 corpus | Specs 0001 and 0002. The CSB profile moves to Phase 5. AD-5: the first profile is `bsb-gilbert`, profiles are compiled-in Kotlin data, and the CLI's `AudioProbe` is a built-in MP3 frame scanner (the BSB files are CBR MP3 with no Xing header, and ffprobe isn't assumed). |
+| 2026-11-08 | AD-3: chapter-group node | Adds `bible/{v}/{BOOK}/{from}-{to}` so long chapter lists (PSA, ISA) stay within Auto list limits (spec 0002 §7.4). |
 
 ---
 
 ## 6. Open questions
 
 1. **CSB file layout.** What are the exact folder and file naming conventions, and the format
-   (MP3? bitrate?) of the CSB set? Needed for the Phase 1 layout profile.
+   (MP3? bitrate?) of the CSB set? Now needed for Phase 5; Phase 1 uses the BSB corpus.
 2. **Bible Recap plan data.** Author the day→chapters definition by hand from the published
    plan, or derive it from the podcast episode titles? Can a definition be redistributed in a
    Play build, or should it stay user-imported?
