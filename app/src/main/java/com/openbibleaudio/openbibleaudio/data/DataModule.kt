@@ -5,9 +5,12 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.room.Room
+import com.openbibleaudio.openbibleaudio.data.db.ALL_MIGRATIONS
 import com.openbibleaudio.openbibleaudio.data.db.CompletionDao
 import com.openbibleaudio.openbibleaudio.data.db.LibraryDao
 import com.openbibleaudio.openbibleaudio.data.db.OpenBibleAudioDatabase
+import com.openbibleaudio.openbibleaudio.data.db.PlanDao
+import com.openbibleaudio.openbibleaudio.data.db.PodcastDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -24,13 +27,21 @@ object DataModule {
     @Provides
     @Singleton
     fun database(@ApplicationContext context: Context): OpenBibleAudioDatabase =
-        Room.databaseBuilder(context, OpenBibleAudioDatabase::class.java, OpenBibleAudioDatabase.NAME).build()
+        Room.databaseBuilder(context, OpenBibleAudioDatabase::class.java, OpenBibleAudioDatabase.NAME)
+            .addMigrations(*ALL_MIGRATIONS)
+            .build()
 
     @Provides
     fun libraryDao(db: OpenBibleAudioDatabase): LibraryDao = db.libraryDao()
 
     @Provides
     fun completionDao(db: OpenBibleAudioDatabase): CompletionDao = db.completionDao()
+
+    @Provides
+    fun planDao(db: OpenBibleAudioDatabase): PlanDao = db.planDao()
+
+    @Provides
+    fun podcastDao(db: OpenBibleAudioDatabase): PodcastDao = db.podcastDao()
 
     @Provides
     @Singleton

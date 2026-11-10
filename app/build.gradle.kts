@@ -71,6 +71,8 @@ room {
 
 dependencies {
     implementation(project(":core:model"))
+    // Feed parsing uses org.xmlpull.v1, which Android provides (spec 0003 §11).
+    implementation(project(":core:podcast"))
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
