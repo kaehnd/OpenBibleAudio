@@ -139,3 +139,5 @@ data class ManualPinEntity(
 
 /** Day status row joined for progress computation. */
 data class DayStatusRow(val day: Int, val status: DayStatus)
+
+data class EnrollmentDayStatusRow(val enrollmentId: Long, val day: Int, val status: DayStatus)

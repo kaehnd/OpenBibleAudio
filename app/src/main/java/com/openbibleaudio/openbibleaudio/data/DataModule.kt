@@ -57,5 +57,9 @@ object DataModule {
 
     @Provides
     @Singleton
+    fun plans(dao: PlanDao) = com.openbibleaudio.openbibleaudio.plans.PlanRepository(dao)
+
+    @Provides
+    @Singleton
     fun library(dao: LibraryDao, storage: BibleStorage, resumption: ResumptionStore) = LibraryRepository(dao, storage, resumption)
 }

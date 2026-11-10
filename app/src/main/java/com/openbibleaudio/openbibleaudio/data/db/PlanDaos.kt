@@ -19,6 +19,12 @@ interface PlanDao {
     @Query("SELECT * FROM plan WHERE id = :id AND version = :version")
     suspend fun plan(id: String, version: Int): PlanEntity?
 
+    @Query("SELECT * FROM plan")
+    fun observePlans(): Flow<List<PlanEntity>>
+
+    @Query("SELECT version FROM plan WHERE id = :id")
+    suspend fun planVersions(id: String): List<Int>
+
     /** The newest version of each imported plan. */
     @Query("SELECT * FROM plan p WHERE version = (SELECT MAX(version) FROM plan q WHERE q.id = p.id) ORDER BY name")
     fun observeLatestPlans(): Flow<List<PlanEntity>>
@@ -53,6 +59,26 @@ interface PlanDao {
 
     @Query("SELECT day, status FROM enrollment_day WHERE enrollmentId = :enrollmentId")
     fun observeDayStatuses(enrollmentId: Long): Flow<List<DayStatusRow>>
+
+    @Query("SELECT enrollmentId, day, status FROM enrollment_day")
+    fun observeAllDayStatuses(): Flow<List<EnrollmentDayStatusRow>>
+
+    @Query("UPDATE enrollment SET state = :state WHERE id = :id")
+    suspend fun setEnrollmentState(id: Long, state: EnrollmentState)
+
+    @Query("DELETE FROM enrollment_day WHERE enrollmentId = :enrollmentId")
+    suspend fun clearDays(enrollmentId: Long)
+
+    @Query("DELETE FROM enrollment_item_completion WHERE enrollmentId = :enrollmentId")
+    suspend fun clearAllCompletions(enrollmentId: Long)
+
+    /** "Restart plan": every day back to PENDING (spec 0003 §6.3). */
+    @Transaction
+    suspend fun restart(enrollmentId: Long) {
+        clearAllCompletions(enrollmentId)
+        clearDays(enrollmentId)
+        setEnrollmentState(enrollmentId, EnrollmentState.ACTIVE)
+    }
 
     @Query("SELECT * FROM enrollment_day WHERE enrollmentId = :enrollmentId AND day = :day")
     suspend fun day(enrollmentId: Long, day: Int): EnrollmentDayEntity?
