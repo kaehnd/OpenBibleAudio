@@ -46,6 +46,13 @@ fun SettingsScreen(viewModel: SettingsViewModel, contentPadding: PaddingValues, 
         SeekRow(stringResource(R.string.settings_seek_forward), s.seekForwardMs, viewModel::setSeekForward)
         Text(stringResource(R.string.settings_seek_note), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 16.dp))
         HorizontalDivider(Modifier.padding(top = 8.dp))
+        Header(stringResource(R.string.settings_plans))
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.settings_continue_next_day)) },
+            supportingContent = { Text(stringResource(R.string.settings_continue_next_day_summary)) },
+            trailingContent = { Switch(checked = s.continueToNextDay, onCheckedChange = { viewModel.setContinueToNextDay(it) }) },
+        )
+        HorizontalDivider()
         ListItem(
             headlineContent = { Text(stringResource(R.string.settings_verify_hashes)) },
             supportingContent = { Text(stringResource(R.string.settings_verify_hashes_summary)) },

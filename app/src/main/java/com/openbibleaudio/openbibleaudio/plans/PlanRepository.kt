@@ -147,6 +147,9 @@ class PlanRepository(
         dao.setEnrollmentState(enrollmentId, if (paused) EnrollmentState.PAUSED else EnrollmentState.ACTIVE)
     }
 
+    /** Archived enrollments leave Auto and the Plans list but keep their progress. */
+    suspend fun archive(enrollmentId: Long) = dao.setEnrollmentState(enrollmentId, EnrollmentState.ARCHIVED)
+
     suspend fun summary(enrollmentId: Long): EnrollmentSummary? {
         val e = dao.enrollment(enrollmentId) ?: return null
         val plan = plan(e.planId, e.planVersion) ?: return null

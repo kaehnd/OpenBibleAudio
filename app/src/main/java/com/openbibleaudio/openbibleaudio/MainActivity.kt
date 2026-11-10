@@ -11,10 +11,14 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.EventNote
+import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -38,6 +42,8 @@ import com.openbibleaudio.openbibleaudio.ui.library.LibraryScreen
 import com.openbibleaudio.openbibleaudio.ui.player.MiniPlayer
 import com.openbibleaudio.openbibleaudio.ui.player.NowPlayingScreen
 import com.openbibleaudio.openbibleaudio.ui.player.PlayerViewModel
+import com.openbibleaudio.openbibleaudio.ui.plans.EnrollmentScreen
+import com.openbibleaudio.openbibleaudio.ui.plans.PlansScreen
 import com.openbibleaudio.openbibleaudio.ui.settings.AboutScreen
 import com.openbibleaudio.openbibleaudio.ui.settings.SettingsScreen
 import com.openbibleaudio.openbibleaudio.ui.theme.OpenBibleAudioTheme
@@ -50,6 +56,8 @@ import kotlinx.serialization.Serializable
 @Serializable object NowPlayingRoute
 @Serializable object SettingsRoute
 @Serializable object AboutRoute
+@Serializable object PlansRoute
+@Serializable data class EnrollmentRoute(val enrollmentId: Long)
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -81,7 +89,8 @@ private fun App(player: PlayerViewModel) {
     val destination = entry?.destination
     val playerState by player.state.collectAsStateWithLifecycle()
     val titles = BookTitles(LocalContext.current)
-    val atRoot = destination?.hasRoute(LibraryRoute::class) != false
+    val onPlans = destination?.hasRoute(PlansRoute::class) == true
+    val atRoot = destination == null || destination.hasRoute(LibraryRoute::class) || onPlans
     val onNowPlaying = destination?.hasRoute(NowPlayingRoute::class) == true
 
     val title = when {
@@ -90,6 +99,7 @@ private fun App(player: PlayerViewModel) {
         onNowPlaying -> stringResource(R.string.now_playing)
         destination?.hasRoute(SettingsRoute::class) == true -> stringResource(R.string.settings)
         destination?.hasRoute(AboutRoute::class) == true -> stringResource(R.string.about)
+        onPlans || destination?.hasRoute(EnrollmentRoute::class) == true -> stringResource(R.string.nav_plans)
         else -> stringResource(R.string.library_title)
     }
 
@@ -112,8 +122,27 @@ private fun App(player: PlayerViewModel) {
             )
         },
         bottomBar = {
-            if (playerState.hasItem && !onNowPlaying) {
-                Column { MiniPlayer(playerState, player) { nav.navigate(NowPlayingRoute) { launchSingleTop = true } } }
+            Column {
+                if (playerState.hasItem && !onNowPlaying) {
+                    MiniPlayer(playerState, player) { nav.navigate(NowPlayingRoute) { launchSingleTop = true } }
+                }
+                // Library and Plans are the two top-level destinations (spec 0003 §9.3).
+                if (atRoot) {
+                    NavigationBar {
+                        NavigationBarItem(
+                            selected = !onPlans,
+                            onClick = { nav.navigate(LibraryRoute) { popUpTo(LibraryRoute) { inclusive = true }; launchSingleTop = true } },
+                            icon = { Icon(Icons.Default.LibraryMusic, contentDescription = null) },
+                            label = { Text(stringResource(R.string.nav_library)) },
+                        )
+                        NavigationBarItem(
+                            selected = onPlans,
+                            onClick = { nav.navigate(PlansRoute) { popUpTo(LibraryRoute); launchSingleTop = true } },
+                            icon = { Icon(Icons.Default.EventNote, contentDescription = null) },
+                            label = { Text(stringResource(R.string.nav_plans)) },
+                        )
+                    }
+                }
             }
         },
     ) { padding ->
@@ -136,6 +165,18 @@ private fun App(player: PlayerViewModel) {
             composable<NowPlayingRoute> { NowPlayingScreen(playerState, player, padding) }
             composable<SettingsRoute> { SettingsScreen(hiltViewModel(), padding) { nav.navigate(AboutRoute) } }
             composable<AboutRoute> { AboutScreen(hiltViewModel(), padding) }
+            composable<PlansRoute> {
+                PlansScreen(hiltViewModel(), padding, onOpen = { nav.navigate(EnrollmentRoute(it)) }) { mediaId ->
+                    player.playMediaId(mediaId)
+                    nav.navigate(NowPlayingRoute) { launchSingleTop = true }
+                }
+            }
+            composable<EnrollmentRoute> {
+                EnrollmentScreen(hiltViewModel(), padding, onPlay = { mediaId ->
+                    player.playMediaId(mediaId)
+                    nav.navigate(NowPlayingRoute) { launchSingleTop = true }
+                }) { nav.popBackStack() }
+            }
         }
     }
 }

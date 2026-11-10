@@ -32,4 +32,5 @@ class SettingsViewModel @Inject constructor(
     fun setSeekBack(ms: Long) = viewModelScope.launch { repository.setSeekBackMs(ms) }
     fun setSeekForward(ms: Long) = viewModelScope.launch { repository.setSeekForwardMs(ms) }
     fun setVerifyHashes(verify: Boolean) = viewModelScope.launch { repository.setVerifyHashesOnImport(verify) }
+    fun setContinueToNextDay(value: Boolean) = viewModelScope.launch { repository.setContinueToNextDay(value) }
 }
