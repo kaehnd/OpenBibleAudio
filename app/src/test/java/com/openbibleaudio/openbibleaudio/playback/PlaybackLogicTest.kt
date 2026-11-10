@@ -4,6 +4,9 @@ import com.openbibleaudio.core.model.Book
 import com.openbibleaudio.core.model.ChapterRef
 import com.openbibleaudio.core.model.MediaId
 import com.openbibleaudio.core.model.Testament
+import com.openbibleaudio.core.model.plan.Reading
+import com.openbibleaudio.openbibleaudio.plans.DayStatus
+import com.openbibleaudio.openbibleaudio.plans.PlanPosition
 import org.junit.Test
 import java.util.TreeSet
 import kotlin.test.assertEquals
@@ -18,13 +21,33 @@ private fun snapshot(vararg versions: Pair<String, Set<ChapterRef>>) = LibrarySn
     chapters = versions.associate { it.first to TreeSet(it.second) },
 )
 
-private object Titles : BrowseTitles {
+/** Plain-text titles; also used by PlanBrowseTreeTest. */
+internal object Titles : BrowseTitles {
     override val bible = "Bible"
     override val noLibrary = "No Bible"
     override fun testament(t: Testament) = t.name
     override fun book(b: Book) = b.usfm
     override fun chapterGroup(b: Book, from: Int, to: Int) = "${b.usfm} $from-$to"
     override fun version(v: VersionInfo) = v.abbreviation
+    override val today = "Today"
+    override val plans = "Plans"
+    override val noPlans = "No plans"
+    override fun enrollmentToday(planName: String, day: Int, upNext: Boolean) = "$planName · Day $day" + if (upNext) " (up next)" else ""
+    override fun enrollmentSubtitle(position: PlanPosition) = when {
+        position.currentDay == null -> "Finished"
+        position.behind > 0 -> "Day ${position.currentDay} · ${position.behind} behind"
+        position.ahead > 0 -> "Day ${position.currentDay} · ${position.ahead} ahead"
+        else -> "Day ${position.currentDay} of ${position.dayCount}"
+    }
+    override fun dayGroup(from: Int, to: Int) = "Days $from-$to"
+    override fun day(day: Int, status: DayStatus) = "Day $day" + when (status) {
+        DayStatus.COMPLETE -> " ✓"
+        DayStatus.SKIPPED -> " skipped"
+        DayStatus.IN_PROGRESS -> " started"
+        DayStatus.PENDING -> ""
+    }
+    override fun reading(reading: Reading) = "${reading.book.usfm} ${reading.from}" + (reading.to?.let { "-$it" } ?: "")
+    override fun continueItem(title: String) = "Continue: $title"
 }
 
 class QueueBuilderTest {
@@ -74,8 +97,8 @@ class BrowseTreeTest {
     }
 
     @Test
-    fun rootHasOnlyBible() {
-        assertEquals(listOf("bible"), tree.children(MediaId.Root, snapshot("bsb" to all()))!!.map { it.id })
+    fun rootIsTodayBiblePlans() {
+        assertEquals(listOf("today", "bible", "plan"), tree.children(MediaId.Root, snapshot("bsb" to all()))!!.map { it.id })
     }
 
     @Test

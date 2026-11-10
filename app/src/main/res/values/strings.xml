@@ -79,6 +79,35 @@
     <string name="browse_chapter_group">%1$s %2$d–%3$d</string>
     <string name="browse_version">%1$s — %2$s</string>
 
+    <!-- Plans in the Auto browse tree (spec 0003 §9.1) -->
+    <string name="browse_today">Today</string>
+    <string name="browse_plans">Plans</string>
+    <string name="browse_no_plans">No plans yet. Add one on your phone.</string>
+    <string name="plan_today">%1$s · Day %2$d</string>
+    <string name="plan_today_up_next">%1$s · Day %2$d (up next)</string>
+    <string name="plan_day">Day %1$d</string>
+    <string name="plan_day_complete">Day %1$d ✓</string>
+    <string name="plan_day_skipped">Day %1$d · skipped</string>
+    <string name="plan_day_started">Day %1$d · started</string>
+    <string name="plan_day_group">Days %1$d–%2$d</string>
+    <string name="plan_day_of">Day %1$d of %2$d</string>
+    <plurals name="plan_behind">
+        <item quantity="one">Day %2$d · %1$d day behind</item>
+        <item quantity="other">Day %2$d · %1$d days behind</item>
+    </plurals>
+    <plurals name="plan_ahead">
+        <item quantity="one">Day %2$d · %1$d day ahead</item>
+        <item quantity="other">Day %2$d · %1$d days ahead</item>
+    </plurals>
+    <string name="plan_finished">Finished</string>
+    <string name="plan_reading_chapter">%1$s %2$d</string>
+    <string name="plan_reading_range">%1$s %2$d–%3$d</string>
+    <string name="plan_continue">Continue: %1$s</string>
+    <string name="plan_queue_album">%1$s · Day %2$d</string>
+    <string name="error_plan_missing">That plan is no longer on this phone.</string>
+    <string name="error_plan_finished">%1$s is finished. Restart it on your phone to listen again.</string>
+    <string name="error_plan_day_empty">None of Day %1$d\'s chapters are in %2$s.</string>
+
     <!-- Playback -->
     <string name="seek_back">Back %1$d seconds</string>
     <string name="seek_forward">Forward %1$d seconds</string>

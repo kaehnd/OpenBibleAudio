@@ -8,6 +8,7 @@ import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
@@ -35,6 +36,15 @@ import com.openbibleaudio.openbibleaudio.data.SettingsRepository
 import com.openbibleaudio.openbibleaudio.data.db.ChapterCompletionEntity
 import com.openbibleaudio.openbibleaudio.data.db.CompletionDao
 import com.openbibleaudio.openbibleaudio.library.BibleAudioSource
+import com.openbibleaudio.openbibleaudio.plans.DayQueue
+import com.openbibleaudio.openbibleaudio.plans.EnrollmentSummary
+import com.openbibleaudio.openbibleaudio.plans.EpisodeAvailability
+import com.openbibleaudio.openbibleaudio.plans.EpisodeUnavailable
+import com.openbibleaudio.openbibleaudio.plans.PlanQueueBuilder
+import com.openbibleaudio.openbibleaudio.plans.PlanRepository
+import com.openbibleaudio.openbibleaudio.plans.PlanResumption
+import com.openbibleaudio.openbibleaudio.plans.PlanVoice
+import com.openbibleaudio.openbibleaudio.plans.QueueEntry
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -64,9 +74,16 @@ class PlaybackService : MediaLibraryService() {
     @Inject lateinit var resumption: ResumptionStore
     @Inject lateinit var audioSource: BibleAudioSource
     @Inject lateinit var completions: CompletionDao
+    @Inject lateinit var planRepository: PlanRepository
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val snapshot = MutableStateFlow<LibrarySnapshot?>(null)
+    private val enrollments = MutableStateFlow<List<EnrollmentSummary>?>(null)
+
+    /** Day queues as built for the player, by (enrollment, day): completion uses the queue as built (§6.3). */
+    private val builtDays = mutableMapOf<Pair<Long, Int>, BuiltDay>()
+
+    private class BuiltDay(val queue: DayQueue, val versionId: String)
     private val tracker = CompletionTracker()
     private var settings = Settings()
 
@@ -111,10 +128,11 @@ class PlaybackService : MediaLibraryService() {
             .build()
 
         scope.launch { library.snapshot.collect(::onSnapshot) }
+        scope.launch { planRepository.enrollments.collect(::onEnrollments) }
         scope.launch {
             settingsRepository.settings.collect { s ->
                 settings = s
-                if (player.playbackParameters.speed != s.bibleSpeed) player.setPlaybackSpeed(s.bibleSpeed)
+                applySpeed()
             }
         }
         scope.launch { tick() }
@@ -153,11 +171,47 @@ class PlaybackService : MediaLibraryService() {
         ids.forEach { session.notifyChildrenChanged(it, Int.MAX_VALUE, null) }
 
         // A version deleted while playing from it: stop and clear (spec 0002 §7.9).
-        val current = player.currentMediaItem?.let { MediaId.parse(it.mediaId) } as? MediaId.Chapter
-        if (current != null && new.version(current.versionId) == null) {
+        val versionId = when (val current = player.currentMediaItem?.let { MediaId.parse(it.mediaId) }) {
+            is MediaId.Chapter -> current.versionId
+            is MediaId.PlanItem -> builtDays[current.enrollmentId to current.day]?.versionId
+            else -> null
+        }
+        if (versionId != null && new.version(versionId) == null) {
             player.stop()
             player.clearMediaItems()
         }
+    }
+
+    private fun onEnrollments(new: List<EnrollmentSummary>) {
+        val old = enrollments.value
+        enrollments.value = new
+        if (old == null || old == new) return
+        // Progress or enrollments changed: refresh Today, Plans and each enrollment (spec 0003 §9.1, AD-13).
+        val ids = buildSet {
+            add(MediaId.ROOT)
+            add(MediaId.TODAY)
+            add(MediaId.PLAN)
+            (old + new).forEach { e ->
+                add(MediaId.Enrollment(e.enrollment.id).format())
+                tree.dayGroups(e).forEach { (from, to) -> add(MediaId.DayGroup(e.enrollment.id, from, to).format()) }
+            }
+        }
+        ids.forEach { session.notifyChildrenChanged(it, Int.MAX_VALUE, null) }
+    }
+
+    private suspend fun planState(): PlanBrowseState =
+        PlanBrowseState(enrollments.filterNotNull().first(), resumeEntry())
+
+    /** The saved item as a "Continue: …" entry on the Today tab, if it can still be played. */
+    private suspend fun resumeEntry(): ResumeEntry? {
+        val saved = resumption.get() ?: return null
+        val title = when (val id = MediaId.parse(saved.mediaId)) {
+            is MediaId.Chapter -> id.takeIf { snap().has(it.versionId, it.ref) }?.let { books.chapter(it.ref) }
+            is MediaId.PlanItem -> enrollments.value?.firstOrNull { it.enrollment.id == id.enrollmentId }
+                ?.let { getString(R.string.plan_queue_album, it.plan.name, id.day) }
+            else -> null
+        } ?: return null
+        return ResumeEntry(saved.mediaId, title)
     }
 
     private suspend fun snap(): LibrarySnapshot = snapshot.filterNotNull().first()
@@ -188,10 +242,79 @@ class PlaybackService : MediaLibraryService() {
         return items.playable(id, version, resolved, s.chapters(id.versionId, id.ref.book).size)
     }
 
+    // --- Plan day queues (spec 0003 §6.2, §9.2) ------------------------------------------------
+
+    /**
+     * Day [day] of [enrollmentId] (null = the current day), starting at queue index [startIndex].
+     * Items are always `plan/{e}/day/{n}/{i}` so completion and resumption know their day.
+     */
+    private suspend fun planQueue(enrollmentId: Long, day: Int?, startIndex: Int = 0, startPositionMs: Long = 0): MediaSession.MediaItemsWithStartPosition {
+        val summary = planRepository.summary(enrollmentId) ?: throw NotFound(getString(R.string.error_plan_missing))
+        val d = day ?: summary.position.currentDay ?: throw NotFound(getString(R.string.error_plan_finished, summary.plan.name))
+        val mediaItems = planItems(summary, d)
+        val start = mediaItems.indexOfFirst { (MediaId.parse(it.mediaId) as? MediaId.PlanItem)?.index == startIndex }
+        return MediaSession.MediaItemsWithStartPosition(mediaItems, start.coerceAtLeast(0), if (start < 0) 0 else startPositionMs.coerceAtLeast(0))
+    }
+
+    private suspend fun planItems(summary: EnrollmentSummary, day: Int): List<MediaItem> {
+        val s = snap()
+        val version = planVersion(summary, s) ?: throw NotFound(getString(R.string.browse_no_library))
+        val episode = if (summary.plan.podcast == null) {
+            EpisodeAvailability.Unavailable(EpisodeUnavailable.NO_PODCAST)
+        } else {
+            // Episodes arrive with downloads (spec 0003 M3).
+            EpisodeAvailability.Unavailable(EpisodeUnavailable.NOT_DOWNLOADED)
+        }
+        val queue = PlanQueueBuilder.build(summary.enrollment.id, summary.plan, day, s.chapters(version.versionId), episode)
+            ?: throw NotFound(getString(R.string.error_plan_missing))
+        val chapters = queue.entries.filterIsInstance<QueueEntry.Chapter>()
+        val resolved = audioSource.resolveAll(version.versionId, chapters.map { it.ref })
+        val album = getString(R.string.plan_queue_album, summary.plan.name, day)
+        val mediaItems = chapters.mapNotNull { entry ->
+            resolved[entry.ref]?.let { items.planChapter(entry.mediaId, entry.ref, version, it, album) }
+        }
+        if (mediaItems.isEmpty()) throw NotFound(getString(R.string.error_plan_day_empty, day, version.abbreviation))
+        builtDays[summary.enrollment.id to day] = BuiltDay(queue, version.versionId)
+        return mediaItems
+    }
+
+    /** The enrollment's Bible version, or the default at play time when it has none (or it's gone). */
+    private suspend fun planVersion(summary: EnrollmentSummary, s: LibrarySnapshot): VersionInfo? =
+        summary.enrollment.versionId?.let { s.version(it) }
+            ?: preferredVersion()?.let { s.version(it) }
+            ?: s.versions.firstOrNull()
+
+    private suspend fun preferredVersion(): String? = when (val id = resumption.get()?.let { MediaId.parse(it.mediaId) }) {
+        is MediaId.Chapter -> id.versionId
+        is MediaId.PlanItem -> builtDays[id.enrollmentId to id.day]?.versionId
+        else -> null
+    }
+
+    /** The enrollment of the saved plan item, for "today" by voice (spec 0003 §9.2). */
+    private suspend fun lastPlayedEnrollment(): Long? = (resumption.get()?.let { MediaId.parse(it.mediaId) } as? MediaId.PlanItem)?.enrollmentId
+
+    /** Resolves a playable plan ID to its queue, or null for other IDs. */
+    private suspend fun planRequest(id: MediaId?, startPositionMs: Long): MediaSession.MediaItemsWithStartPosition? = when (id) {
+        is MediaId.EnrollmentToday -> planQueue(id.enrollmentId, null)
+        is MediaId.PlanDay -> planQueue(id.enrollmentId, id.day)
+        is MediaId.PlanItem -> planQueue(id.enrollmentId, id.day, id.index, startPositionMs)
+        else -> null
+    }
+
     /** The saved chapter and position, or the first available chapter (spec 0002 §7.5). */
     private suspend fun resumptionQueue(): MediaSession.MediaItemsWithStartPosition {
         val s = snap()
         val saved = resumption.get()
+        val savedPlan = saved?.let { MediaId.parse(it.mediaId) } as? MediaId.PlanItem
+        if (savedPlan != null) {
+            val summary = planRepository.summary(savedPlan.enrollmentId)
+            val target = summary?.let {
+                PlanResumption.target(savedPlan.day, savedPlan.index, ResumptionPolicy.startPosition(saved.positionMs), it.statuses, it.position.currentDay)
+            }
+            if (target != null) {
+                runCatching { return planQueue(savedPlan.enrollmentId, target.day, target.index, target.positionMs) }
+            }
+        }
         val savedId = saved?.let { MediaId.parse(it.mediaId) } as? MediaId.Chapter
         if (savedId != null && s.has(savedId.versionId, savedId.ref)) {
             return queueFor(savedId, ResumptionPolicy.startPosition(saved.positionMs))
@@ -202,7 +325,9 @@ class PlaybackService : MediaLibraryService() {
     }
 
     private suspend fun voiceQueue(query: String): MediaSession.MediaItemsWithStartPosition {
-        val preferred = (resumption.get()?.let { MediaId.parse(it.mediaId) } as? MediaId.Chapter)?.versionId
+        // "today", "my plan" or a plan's name come before reference parsing (spec 0003 §9.2).
+        PlanVoice.match(query, enrollments.filterNotNull().first(), lastPlayedEnrollment())?.let { return planQueue(it, null) }
+        val preferred = preferredVersion()
         return when (val request = VoiceSearch.resolve(query, snap(), preferred)) {
             VoiceRequest.Resume -> resumptionQueue()
             is VoiceRequest.Play -> queueFor(request.chapter, 0)
@@ -249,7 +374,7 @@ class PlaybackService : MediaLibraryService() {
             params: LibraryParams?,
         ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> = scope.future {
             val id = MediaId.parse(parentId)
-            val children = id?.let { tree.children(it, snap()) }
+            val children = id?.let { tree.children(it, snap(), planState()) }
                 ?: return@future LibraryResult.ofError(SessionError.ERROR_BAD_VALUE)
             LibraryResult.ofItemList(page(children, page, pageSize).map(items::browseItem), params)
         }
@@ -259,7 +384,7 @@ class PlaybackService : MediaLibraryService() {
             browser: MediaSession.ControllerInfo,
             mediaId: String,
         ): ListenableFuture<LibraryResult<MediaItem>> = scope.future {
-            val node = MediaId.parse(mediaId)?.let { tree.node(it, snap()) }
+            val node = MediaId.parse(mediaId)?.let { tree.node(it, snap(), planState()) }
                 ?: return@future LibraryResult.ofError(SessionError.ERROR_BAD_VALUE)
             LibraryResult.ofItem(items.browseItem(node), null)
         }
@@ -296,7 +421,12 @@ class PlaybackService : MediaLibraryService() {
                 if (query != null) {
                     voiceQueue(query).mediaItems.firstOrNull()
                 } else {
-                    (MediaId.parse(request.mediaId) as? MediaId.Chapter)?.let { singleItem(it) }
+                    when (val id = MediaId.parse(request.mediaId)) {
+                        is MediaId.Chapter -> singleItem(id)
+                        is MediaId.PlanItem -> planQueue(id.enrollmentId, id.day, id.index).let { it.mediaItems[it.startIndex] }
+                        is MediaId.EnrollmentToday, is MediaId.PlanDay -> planRequest(id, 0)?.mediaItems?.firstOrNull()
+                        else -> null
+                    }
                 }
             }.toMutableList()
         }
@@ -310,9 +440,16 @@ class PlaybackService : MediaLibraryService() {
         ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = withErrors {
             val single = mediaItems.singleOrNull()
             val query = single?.requestMetadata?.searchQuery
-            val chapter = single?.let { MediaId.parse(it.mediaId) } as? MediaId.Chapter
+            val singleId = single?.let { MediaId.parse(it.mediaId) }
+            val chapter = singleId as? MediaId.Chapter
+            val position = if (startPositionMs == C.TIME_UNSET) 0 else startPositionMs
+            val saved = resumption.get()
             when {
                 query != null -> voiceQueue(query)
+                // The Today tab's "Continue: …" item carries the saved ID: resume where it stopped.
+                single != null && saved != null && single.mediaId == saved.mediaId && startPositionMs == C.TIME_UNSET -> resumptionQueue()
+                singleId is MediaId.EnrollmentToday || singleId is MediaId.PlanDay || singleId is MediaId.PlanItem ->
+                    planRequest(singleId, position)!!
                 // One chapter: expand it into a continuous-play queue (§7.3).
                 chapter != null -> queueFor(chapter, if (startPositionMs == C.TIME_UNSET) 0 else startPositionMs)
                 else -> {
@@ -330,9 +467,13 @@ class PlaybackService : MediaLibraryService() {
         ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = withErrors { resumptionQueue() }
     }
 
-    private suspend fun searchResults(query: String) = snap().let { s ->
-        val preferred = (resumption.get()?.let { MediaId.parse(it.mediaId) } as? MediaId.Chapter)?.versionId
-        VoiceSearch.results(query, s, preferred).mapNotNull { tree.node(it, s) }
+    private suspend fun searchResults(query: String): List<BrowseNode> {
+        val s = snap()
+        val plans = planState()
+        PlanVoice.match(query, plans.enrollments, lastPlayedEnrollment())?.let { e ->
+            return listOfNotNull(tree.node(MediaId.EnrollmentToday(e), s, plans))
+        }
+        return VoiceSearch.results(query, s, preferredVersion()).mapNotNull { tree.node(it, s) }
     }
 
     private fun <T> page(list: List<T>, page: Int, pageSize: Int): List<T> {
@@ -386,7 +527,8 @@ class PlaybackService : MediaLibraryService() {
 
     private fun currentState(): ResumptionState? {
         val item = player.currentMediaItem ?: return null
-        if (MediaId.parse(item.mediaId) !is MediaId.Chapter) return null
+        val id = MediaId.parse(item.mediaId)
+        if (id !is MediaId.Chapter && id !is MediaId.PlanItem) return null
         return ResumptionState(item.mediaId, player.currentPosition, System.currentTimeMillis())
     }
 
@@ -401,16 +543,69 @@ class PlaybackService : MediaLibraryService() {
     }
 
     private fun record(mediaId: String?) {
-        val id = mediaId?.let { MediaId.parse(it) } as? MediaId.Chapter ?: return
-        scope.launch(Dispatchers.IO) {
-            completions.insert(ChapterCompletionEntity(versionId = id.versionId, book = id.ref.book, chapter = id.ref.chapter, completedAt = System.currentTimeMillis()))
+        when (val id = mediaId?.let { MediaId.parse(it) }) {
+            is MediaId.Chapter -> scope.launch(Dispatchers.IO) {
+                completions.insert(ChapterCompletionEntity(versionId = id.versionId, book = id.ref.book, chapter = id.ref.chapter, completedAt = System.currentTimeMillis()))
+            }
+            is MediaId.PlanItem -> recordPlanItem(id)
+            else -> Unit
         }
+    }
+
+    /**
+     * Writes `enrollment_item_completion` and recomputes the day (spec 0003 §9.2). Chapters also go
+     * into the global `chapter_completion` log (§5).
+     */
+    private fun recordPlanItem(id: MediaId.PlanItem) {
+        val built = builtDays[id.enrollmentId to id.day]
+        val entry = built?.queue?.entries?.firstOrNull { it.mediaId == id }
+        if (built == null || entry == null) {
+            Log.w(TAG, "No built queue for ${id.format()}; completion not recorded")
+            return
+        }
+        scope.launch {
+            if (entry is QueueEntry.Chapter) {
+                completions.insert(
+                    ChapterCompletionEntity(versionId = built.versionId, book = entry.ref.book, chapter = entry.ref.chapter, completedAt = System.currentTimeMillis()),
+                )
+            }
+            planRepository.recordItemCompleted(built.queue, entry.itemKey)
+        }
+    }
+
+    /**
+     * With "continue to next day" on, appends the next open day when the last item of a day's
+     * queue starts, whatever the calendar says (spec 0003 §6.2).
+     */
+    private fun maybeAppendNextDay(mediaItem: MediaItem?) {
+        if (!settings.continueToNextDay) return
+        val id = mediaItem?.let { MediaId.parse(it.mediaId) } as? MediaId.PlanItem ?: return
+        if (player.currentMediaItemIndex != player.mediaItemCount - 1) return
+        scope.launch {
+            val next = planRepository.nextDayAfter(id.enrollmentId, id.day) ?: return@launch
+            val summary = planRepository.summary(id.enrollmentId) ?: return@launch
+            val nextItems = runCatching { planItems(summary, next) }.getOrNull() ?: return@launch
+            // Still on the same last item? Then the queue hasn't changed under us.
+            if (player.currentMediaItem?.mediaId == mediaItem.mediaId && player.currentMediaItemIndex == player.mediaItemCount - 1) {
+                player.addMediaItems(nextItems)
+            }
+        }
+    }
+
+    private fun isEpisode(item: MediaItem?) = item?.mediaMetadata?.mediaType == MediaMetadata.MEDIA_TYPE_PODCAST_EPISODE
+
+    /** Bible chapters and episodes each play at their own speed (spec 0003 §9.2, AD-2). */
+    private fun applySpeed() {
+        val target = if (isEpisode(player.currentMediaItem)) settings.podcastSpeed else settings.bibleSpeed
+        if (player.playbackParameters.speed != target) player.setPlaybackSpeed(target)
     }
 
     private inner class PlayerListener : Player.Listener {
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             record(tracker.end(naturalEnd = reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO))
             tracker.begin(mediaItem?.mediaId, mediaItem?.mediaMetadata?.durationMs ?: 0)
+            applySpeed()
+            maybeAppendNextDay(mediaItem)
             saveAsync()
         }
 
@@ -430,8 +625,12 @@ class PlaybackService : MediaLibraryService() {
         }
 
         override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
-            if (playbackParameters.speed != settings.bibleSpeed) {
-                scope.launch { settingsRepository.setBibleSpeed(playbackParameters.speed) }
+            // The speed chip edits the setting for the current item's type.
+            val speed = playbackParameters.speed
+            if (isEpisode(player.currentMediaItem)) {
+                if (speed != settings.podcastSpeed) scope.launch { settingsRepository.setPodcastSpeed(speed) }
+            } else if (speed != settings.bibleSpeed) {
+                scope.launch { settingsRepository.setBibleSpeed(speed) }
             }
         }
 

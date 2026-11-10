@@ -81,7 +81,7 @@ class PlaybackServiceTest {
             suspend fun children(id: String) = b.getChildren(id, 0, Int.MAX_VALUE, null).await().value!!.map { it.mediaId }
 
             assertEquals("root", b.getLibraryRoot(null).await().value!!.mediaId)
-            assertEquals(listOf("bible"), children("root"))
+            assertEquals(listOf("today", "bible", "plan"), children("root"))
             // Only one version might be imported on this device; otherwise version nodes come first.
             val bible = children("bible")
             val ot = if ("bible/$versionId" in bible) children("bible/$versionId") else bible
