@@ -223,6 +223,26 @@ class VoiceSearchTest {
         assertEquals(VoiceRequest.Resume, VoiceSearch.resolve("", snap, null))
     }
 
+    /** Gemini in Android Auto passes the whole utterance, app name included (DHU, 2026-11-21). */
+    @Test
+    fun theAppsNameIsStripped() {
+        assertEquals("", VoiceSearch.stripAppName("Open Bible audio"))
+        assertEquals("", VoiceSearch.stripAppName("OpenBibleAudio"))
+        assertEquals("", VoiceSearch.stripAppName("the Open Bible Audio app"))
+        assertEquals("Psalm 23", VoiceSearch.stripAppName("Psalm 23 on Open Bible Audio"))
+        assertEquals("today's reading", VoiceSearch.stripAppName("today's reading on open bible audio"))
+        assertEquals("John 3", VoiceSearch.stripAppName("John 3 in OpenBibleAudio"))
+        // Not the app's name: left alone.
+        assertEquals("open bible", VoiceSearch.stripAppName("open bible"))
+        assertEquals("Psalm 23", VoiceSearch.stripAppName("Psalm 23"))
+
+        assertEquals(VoiceRequest.Resume, VoiceSearch.resolve(VoiceSearch.stripAppName("Open Bible audio"), snap, null))
+        assertEquals(
+            VoiceRequest.Play(MediaId.Chapter("bsb", ChapterRef(Book.PSALMS, 23))),
+            VoiceSearch.resolve(VoiceSearch.stripAppName("Psalm 23 on Open Bible Audio"), snap, null),
+        )
+    }
+
     @Test
     fun unknownIsNotFoundWithVersion() {
         assertEquals(VoiceRequest.NotFound("Hezekiah 3", "BSB"), VoiceSearch.resolve("Hezekiah 3", snap, null))

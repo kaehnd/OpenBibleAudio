@@ -333,10 +333,13 @@ root
 
 ### 7.7 Voice search
 - `onSearch` / `onGetSearchResult` and `onSetMediaItems` with a `searchQuery`: run
-  `ReferenceParser.parse(query)`. If the user has several versions, the version is the one in the
+  `ReferenceParser.parse(query)`. The app's own name is removed from the query first
+  (`VoiceSearch.stripAppName`): assistants such as Gemini in Android Auto pass the whole utterance,
+  so "play Psalm 23 on Open Bible Audio" arrives as "Psalm 23 on Open Bible Audio" and "play Open
+  Bible Audio" as "Open Bible audio". If the user has several versions, the version is the one in the
   resumption state, or else the first READY one.
   - Book + chapter → that chapter's queue. Book only → first chapter of the book.
-  - An empty query ("play OpenBibleAudio") → resume (same path as §7.5 resumption).
+  - An empty query, or only the app's name ("play Open Bible Audio") → resume (same path as §7.5 resumption).
   - Can't parse, or the chapter isn't in the pack → error result with the message *"Couldn't find
     'Hezekiah 3' in BSB"*, which Auto reads out.
 - `onGetSearchResult` returns up to 10 matches: the parsed chapter, plus the book's first chapter when only a book was given.

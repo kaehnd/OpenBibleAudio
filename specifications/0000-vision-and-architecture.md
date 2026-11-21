@@ -74,7 +74,7 @@ Each decision has an ID so later specs and code comments can refer to it ("per A
   - Chapters that are sub-spans of a larger file use `MediaItem.ClippingConfiguration`.
   - **Playback resumption** (`onPlaybackResumption`) so Auto and Bluetooth "play" resume where the user left off, even after process death.
   - Custom session commands for non-standard buttons (e.g. "back one verse", "skip back 15 s"), shown via media button preferences / custom layout so they appear in Auto.
-  - Voice search ("play Genesis 3 on OpenBibleAudio") through the session's search and `onSetMediaItems` hooks, which parse a scripture reference.
+  - Voice search ("play Genesis 3 on Open Bible Audio") through the session's search and `onSetMediaItems` hooks, which parse a scripture reference.
   - Playback-speed setting, remembered separately for Bible audio and podcasts.
 - A completion listener in the service records chapter and episode completions (≥ ~95 % played or naturally ended) to the database. Plan progress is driven from these records.
 
@@ -380,6 +380,7 @@ milestones M2 and M3.
 | 2026-11-08 | AD-3: chapter-group node | Adds `bible/{v}/{BOOK}/{from}-{to}` so long chapter lists (PSA, ISA) stay within Auto list limits (spec 0002 §7.4). |
 | 2026-11-08 | AD-3, AD-8, AD-9, AD-12: plans & podcast cycles | Spec 0003. The Bible Recap republishes the same 365 episodes every year and its feed keeps only the 999 newest items, so: episodes are grouped into cycles (`itunes:season`), an enrollment pins one (default: latest complete, e.g. 2025), matched episodes are snapshotted, and download modes are ALL / ROLLING (14) / OFF instead of "next 7 days". New IDs `today`, `plan`, `plan/{e}/days/{from}-{to}`, `plan/{e}/day/{n}/{i}`. New module `:core:podcast`. Phases 2–3 share one spec. |
 | 2026-11-20 | AD-5: second profile `bsb-souer` | The Souer BSB narration on openbible.com uses the Gilbert naming without the `_G` suffix, so it gets its own compiled-in profile (spec 0001 §3, §6.3). The download script becomes `tools/download_openbible_audio.py <narrator>`. |
+| 2026-11-21 | Launcher label "Open Bible Audio"; voice queries drop the app's name | Found on the DHU with Gemini as the Auto assistant. Gemini didn't route "…on OpenBibleAudio" to the app until the label had spaces, and it then passes the whole utterance, app name included, as the `playFromSearch` query ("Open Bible audio", "today's reading Open Bible Audio"). Spec 0002 §7.7 strips the name before parsing. The package name and code identifiers are unchanged. |
 
 ---
 

@@ -60,6 +60,17 @@ sealed interface VoiceRequest {
 }
 
 object VoiceSearch {
+    /** "on Open Bible Audio", "OpenBibleAudio", "the Open Bible Audio app", … (any spacing or case). */
+    private val APP_NAME = Regex("""(?i)\b(?:(?:on|in|from|with|using)\s+)?(?:the\s+)?open\s*bible\s*audio(?:\s+app)?\b""")
+
+    /**
+     * The query without the app's own name. Assistants (Gemini in Android Auto) pass the whole
+     * utterance through, so "play Open Bible Audio" arrives as "Open Bible audio" and "play Psalm
+     * 23 on Open Bible Audio" as "Psalm 23 on Open Bible Audio". A query that was only the name
+     * becomes blank, which means resume.
+     */
+    fun stripAppName(query: String): String = APP_NAME.replace(query, " ").replace(Regex("""\s+"""), " ").trim()
+
     /**
      * [preferredVersion] is the version in the resumption state, if any; otherwise the first
      * READY version is used.

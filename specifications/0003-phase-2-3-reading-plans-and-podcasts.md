@@ -555,7 +555,8 @@ Strings live in `strings.xml`. The plan name, episode titles and readings are us
 7. When the episode ends, Day 1 is ✓ and Today offers "Day 2 (up next)" even though the calendar
    is still on Day 1. Playback stops (continue to next day is off). Playing Today now plays Day 2.
    With continue to next day on, Day 2 follows Day 1 without stopping.
-8. Voice: "Play today's reading on OpenBibleAudio", "Play the Bible Recap".
+8. Voice: "Play Open Bible Audio" (resumes), "Play today's reading on Open Bible Audio". Without the
+   app's name, "Play the Bible Recap" may go to another Bible app (Gemini picked YouVersion on the DHU).
 9. With an episode file deleted by hand (Storage screen) and streaming off, the Today subtitle shows
    "Recap not downloaded" and the day plays readings only.
 10. Set the phone date three days ahead: the enrollment card says "3 days behind", and Skip to today works.

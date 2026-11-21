@@ -55,6 +55,7 @@ import com.openbibleaudio.openbibleaudio.plans.PlanResumption
 import com.openbibleaudio.openbibleaudio.plans.PlanVoice
 import com.openbibleaudio.openbibleaudio.plans.QueueEntry
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -391,7 +392,8 @@ class PlaybackService : MediaLibraryService() {
         return queueFor(MediaId.Chapter(version.versionId, first), 0)
     }
 
-    private suspend fun voiceQueue(query: String): MediaSession.MediaItemsWithStartPosition {
+    private suspend fun voiceQueue(spoken: String): MediaSession.MediaItemsWithStartPosition {
+        val query = VoiceSearch.stripAppName(spoken)
         // "today", "my plan" or a plan's name come before reference parsing (spec 0003 §9.2).
         PlanVoice.match(query, enrollments.filterNotNull().first(), lastPlayedEnrollment())?.let { return planQueue(it, null) }
         val preferred = preferredVersion()
@@ -412,12 +414,25 @@ class PlaybackService : MediaLibraryService() {
             Log.w(TAG, e.message.orEmpty())
             session.setPlaybackException(PlaybackException(e.message, null, PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND))
             throw e
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Anything else would fail the future silently and leave Auto / the assistant waiting.
+            Log.e(TAG, "Request failed", e)
+            session.setPlaybackException(PlaybackException(getString(R.string.error_nothing_to_play), e, PlaybackException.ERROR_CODE_UNSPECIFIED))
+            throw e
         }
     }
 
     // --- Session callback ------------------------------------------------------------------
 
     private inner class LibraryCallback : MediaLibrarySession.Callback {
+        override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult {
+            val result = super.onConnect(session, controller)
+            Log.i(TAG, "Connect from ${controller.packageName} (legacy=${controller.controllerVersion == MediaSession.ControllerInfo.LEGACY_CONTROLLER_VERSION}, trusted=${controller.isTrusted}): accepted=${result.isAccepted}")
+            return result
+        }
+
         private fun rootParams() = LibraryParams.Builder().setExtras(
             Bundle().apply {
                 putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_BROWSABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_LIST_ITEM)
@@ -483,6 +498,7 @@ class PlaybackService : MediaLibraryService() {
             controller: MediaSession.ControllerInfo,
             mediaItems: MutableList<MediaItem>,
         ): ListenableFuture<MutableList<MediaItem>> = withErrors {
+            Log.i(TAG, "Add ${mediaItems.size} item(s) from ${controller.packageName}: query=${mediaItems.firstOrNull()?.requestMetadata?.searchQuery?.let { "\"$it\"" }}")
             mediaItems.mapNotNull { request ->
                 val query = request.requestMetadata.searchQuery
                 if (query != null) {
@@ -507,6 +523,7 @@ class PlaybackService : MediaLibraryService() {
         ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = withErrors {
             val single = mediaItems.singleOrNull()
             val query = single?.requestMetadata?.searchQuery
+            Log.i(TAG, "Set ${mediaItems.size} item(s) from ${controller.packageName}: ${single?.mediaId?.ifEmpty { null } ?: "-"} query=${query?.let { "\"$it\"" }}")
             val singleId = single?.let { MediaId.parse(it.mediaId) }
             val chapter = singleId as? MediaId.Chapter
             val position = if (startPositionMs == C.TIME_UNSET) 0 else startPositionMs
@@ -534,7 +551,8 @@ class PlaybackService : MediaLibraryService() {
         ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = withErrors { resumptionQueue() }
     }
 
-    private suspend fun searchResults(query: String): List<BrowseNode> {
+    private suspend fun searchResults(spoken: String): List<BrowseNode> {
+        val query = VoiceSearch.stripAppName(spoken)
         val s = snap()
         val plans = planState()
         PlanVoice.match(query, plans.enrollments, lastPlayedEnrollment())?.let { e ->

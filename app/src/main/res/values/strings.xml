@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">OpenBibleAudio</string>
+    <string name="app_name">Open Bible Audio</string>
 
     <!-- Book display names in canonical order (Book enum order, AD-11). -->
     <string-array name="book_names">
