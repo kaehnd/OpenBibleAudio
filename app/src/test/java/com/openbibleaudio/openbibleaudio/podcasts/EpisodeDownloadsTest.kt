@@ -59,7 +59,7 @@ class EpisodeDownloadsTest {
         plans = PlanRepository(db.planDao(), clock)
         storage = PodcastStorage(tmp.root) { Long.MAX_VALUE / 2 }
         val settings = SettingsRepository(PreferenceDataStoreFactory.create { tmp.newFile("settings.preferences_pb") })
-        downloads = EpisodeDownloads(plans, db.planDao(), db.podcastDao(), storage, settings, { f, u -> scheduled += f to u }, clock)
+        downloads = EpisodeDownloads(plans, db.planDao(), db.podcastDao(), storage, settings, { f, u, _ -> scheduled += f to u }, clock)
 
         db.planDao().upsertPlan(PlanEntity(plan.id, plan.version, plan.name, PlanCodec.encode(plan), 0))
         val items = FeedParser.parse(TbrShapedFeed.xml.byteInputStream(), Xml.newPullParser()).items
@@ -125,5 +125,40 @@ class EpisodeDownloadsTest {
 
         // And a finished day's episode isn't downloaded again.
         assertFalse(hash(7, 1) in downloads.queue(feedId).map { it.guidHash })
+    }
+
+    @Test
+    fun aDayCanBeDownloadedByHandInAnyMode() = runBlocking {
+        enroll(DownloadMode.OFF)
+        assertEquals(emptyList(), downloads.queue(feedId))
+        downloads.requestDownload(feedId, hash(7, 3))
+        assertEquals(listOf(hash(7, 3)), downloads.queue(feedId).map { it.guidHash })
+        assertEquals(listOf(feedId to true), scheduled)
+
+        // A FAILED episode can be retried the same way.
+        db.podcastDao().setDownload(feedId, hash(7, 4), DownloadState.FAILED, null, null, "gone")
+        downloads.requestDownload(feedId, hash(7, 4))
+        assertEquals(DownloadState.QUEUED, db.podcastDao().episode(feedId, hash(7, 4))!!.downloadState)
+        assertNull(db.podcastDao().episode(feedId, hash(7, 4))!!.downloadError)
+    }
+
+    @Test
+    fun storageDeletesPlayedOrAllDownloads() = runBlocking {
+        enroll(DownloadMode.OFF)
+        for (h in listOf(hash(7, 1), hash(7, 2), hash(7, 3))) {
+            val f = storage.file(feedId, h)
+            f.parentFile!!.mkdirs()
+            f.writeBytes(ByteArray(10))
+            db.podcastDao().setDownloaded(feedId, h, f.path, 10, null)
+        }
+        db.podcastDao().setPosition(feedId, hash(7, 2), 30_000, 0)
+        db.podcastDao().markPlayed(feedId, hash(7, 1), 1)
+
+        assertEquals(1, downloads.deleteDownloads(playedOnly = true))
+        assertFalse(storage.file(feedId, hash(7, 1)).exists())
+        assertEquals(2, downloads.deleteDownloads(playedOnly = false))
+        // Positions survive deletion.
+        assertEquals(30_000, db.podcastDao().episode(feedId, hash(7, 2))!!.positionMs)
+        assertEquals(DownloadState.NONE, db.podcastDao().episode(feedId, hash(7, 2))!!.downloadState)
     }
 }

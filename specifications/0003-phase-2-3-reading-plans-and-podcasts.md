@@ -500,6 +500,12 @@ root
 
 Strings live in `strings.xml`. The plan name, episode titles and readings are user data and shown as-is.
 
+- The day list's per-day "Download" works in any download mode and retries a FAILED episode.
+  "Delete episode" is offered only for a finished day, or when the mode is OFF, because an
+  automatic mode would just download an open day's episode again.
+- Storage opens from an icon in the Plans top bar. Its "Delete" actions keep each episode's
+  position and completion.
+
 ---
 
 ## 10. Testing (AD-15)

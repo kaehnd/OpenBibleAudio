@@ -46,6 +46,17 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.openbibleaudio.openbibleaudio.R
 import com.openbibleaudio.openbibleaudio.playback.BookTitles
 import com.openbibleaudio.openbibleaudio.plans.DayStatus
+import com.openbibleaudio.openbibleaudio.data.db.DownloadMode
+import com.openbibleaudio.openbibleaudio.podcasts.DayEpisodeInfo
+import com.openbibleaudio.openbibleaudio.podcasts.DayEpisodeStatus
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.RadioButton
+import androidx.compose.ui.res.pluralStringResource
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 private enum class Confirm { RESTART, DELETE }
 
@@ -61,6 +72,8 @@ fun EnrollmentScreen(
     val context = LocalContext.current
     val books = remember(context) { BookTitles(context) }
     var confirm by rememberSaveable { mutableStateOf<Confirm?>(null) }
+    var choosingMode by rememberSaveable { mutableStateOf(false) }
+    var pinningDay by rememberSaveable { mutableStateOf<Int?>(null) }
     val e = viewModel.enrollmentId
 
     val state = ui
@@ -87,6 +100,8 @@ fun EnrollmentScreen(
                     HeaderMenu(
                         paused = card.paused,
                         finished = card.finished,
+                        hasPodcast = state.podcast != null,
+                        onDownloadMode = { choosingMode = true },
                         onSkip = viewModel::skipToToday,
                         onPause = { viewModel.setPaused(!card.paused) },
                         onRestart = { confirm = Confirm.RESTART },
@@ -96,6 +111,13 @@ fun EnrollmentScreen(
                 }
                 card.keepGoingDay?.let {
                     Text(stringResource(R.string.plan_card_keep_going, it), color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 4.dp))
+                }
+                state.podcast?.let { p ->
+                    Text(
+                        pluralStringResource(R.plurals.plan_episodes_line, p.progress.matched, p.progress.downloaded, p.progress.matched, modeLabel(p.mode, p.rollingDays)),
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
                 }
                 if (!card.finished) {
                     Button(onClick = { onPlay("plan/$e/today") }, modifier = Modifier.padding(top = 12.dp)) {
@@ -110,10 +132,30 @@ fun EnrollmentScreen(
             DayItem(
                 row = row,
                 readings = readingsText(context, books, row.readings),
+                mode = state.podcast?.mode,
                 onPlay = { onPlay("plan/$e/day/${row.day}") },
                 onMarkComplete = { viewModel.markComplete(row.day) },
                 onMarkNotDone = { viewModel.markNotDone(row.day) },
+                onDownload = { row.episode?.let(viewModel::download) },
+                onDeleteEpisode = { row.episode?.let(viewModel::deleteEpisode) },
+                onPin = { pinningDay = row.day },
+                onUnpin = { viewModel.unpin(row.day) },
             )
+        }
+    }
+
+    val podcast = state.podcast
+    if (choosingMode && podcast != null) {
+        DownloadModeDialog(podcast.mode, podcast.rollingDays, onDismiss = { choosingMode = false }) {
+            choosingMode = false
+            viewModel.setDownloadMode(it)
+        }
+    }
+    val pinDay = pinningDay
+    if (pinDay != null && podcast != null) {
+        PinDialog(pinDay, podcast, onDismiss = { pinningDay = null }) { guidHash ->
+            pinningDay = null
+            viewModel.pin(pinDay, guidHash)
         }
     }
 
@@ -138,6 +180,8 @@ fun EnrollmentScreen(
 private fun HeaderMenu(
     paused: Boolean,
     finished: Boolean,
+    hasPodcast: Boolean,
+    onDownloadMode: () -> Unit,
     onSkip: () -> Unit,
     onPause: () -> Unit,
     onRestart: () -> Unit,
@@ -153,6 +197,7 @@ private fun HeaderMenu(
                     add(R.string.plan_skip_to_today to onSkip)
                     add((if (paused) R.string.plan_resume else R.string.plan_pause) to onPause)
                 }
+                if (hasPodcast) add(R.string.plan_download_mode to onDownloadMode)
                 add(R.string.plan_restart to onRestart)
                 add(R.string.plan_archive to onArchive)
                 add(R.string.plan_delete to onDelete)
@@ -165,7 +210,18 @@ private fun HeaderMenu(
 }
 
 @Composable
-private fun DayItem(row: DayRow, readings: String, onPlay: () -> Unit, onMarkComplete: () -> Unit, onMarkNotDone: () -> Unit) {
+private fun DayItem(
+    row: DayRow,
+    readings: String,
+    mode: DownloadMode?,
+    onPlay: () -> Unit,
+    onMarkComplete: () -> Unit,
+    onMarkNotDone: () -> Unit,
+    onDownload: () -> Unit,
+    onDeleteEpisode: () -> Unit,
+    onPin: () -> Unit,
+    onUnpin: () -> Unit,
+) {
     var menu by remember { mutableStateOf(false) }
     val (icon, description) = when (row.status) {
         DayStatus.COMPLETE -> Icons.Default.CheckCircle to R.string.plan_status_complete
@@ -175,7 +231,18 @@ private fun DayItem(row: DayRow, readings: String, onPlay: () -> Unit, onMarkCom
     }
     ListItem(
         headlineContent = { Text(stringResource(R.string.plan_day, row.day)) },
-        supportingContent = { Text(readings) },
+        supportingContent = {
+            Column {
+                Text(readings)
+                row.episode?.let { ep ->
+                    Text(
+                        episodeLine(ep),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (ep.needsAttention || ep.status == DayEpisodeStatus.FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        },
         leadingContent = {
             Icon(
                 icon,
@@ -188,16 +255,111 @@ private fun DayItem(row: DayRow, readings: String, onPlay: () -> Unit, onMarkCom
                 IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, stringResource(R.string.more_options)) }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(text = { Text(stringResource(R.string.play)) }, onClick = { menu = false; onPlay() })
-                    if (row.status == DayStatus.COMPLETE || row.status == DayStatus.SKIPPED) {
+                    val done = row.status == DayStatus.COMPLETE || row.status == DayStatus.SKIPPED
+                    if (done) {
                         DropdownMenuItem(text = { Text(stringResource(R.string.plan_mark_not_done)) }, onClick = { menu = false; onMarkNotDone() })
                     } else {
                         DropdownMenuItem(text = { Text(stringResource(R.string.plan_mark_complete)) }, onClick = { menu = false; onMarkComplete() })
+                    }
+                    row.episode?.let { ep ->
+                        if (ep.status == DayEpisodeStatus.NOT_DOWNLOADED || ep.status == DayEpisodeStatus.FAILED) {
+                            DropdownMenuItem(text = { Text(stringResource(R.string.episode_download)) }, onClick = { menu = false; onDownload() })
+                        }
+                        // An open day in an automatic mode would just download it again (spec 0003 §8.1).
+                        if (ep.status == DayEpisodeStatus.DOWNLOADED && (done || mode == DownloadMode.OFF)) {
+                            DropdownMenuItem(text = { Text(stringResource(R.string.episode_delete)) }, onClick = { menu = false; onDeleteEpisode() })
+                        }
+                        DropdownMenuItem(text = { Text(stringResource(R.string.episode_pin)) }, onClick = { menu = false; onPin() })
+                        if (ep.pinned) {
+                            DropdownMenuItem(text = { Text(stringResource(R.string.episode_unpin)) }, onClick = { menu = false; onUnpin() })
+                        }
                     }
                 }
             }
         },
         colors = if (row.current) ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.secondaryContainer) else ListItemDefaults.colors(),
         modifier = Modifier.clickable(onClick = onPlay),
+    )
+}
+
+/** The day's episode in one line: its state, and why it needs attention (spec 0003 §7.4). */
+@Composable
+private fun episodeLine(ep: DayEpisodeInfo): String {
+    val state = when (ep.status) {
+        DayEpisodeStatus.NONE -> return stringResource(R.string.episode_line_none)
+        DayEpisodeStatus.NOT_DOWNLOADED -> stringResource(R.string.episode_line_not_downloaded)
+        DayEpisodeStatus.QUEUED -> stringResource(R.string.episode_line_queued)
+        DayEpisodeStatus.DOWNLOADING -> stringResource(R.string.episode_line_downloading)
+        DayEpisodeStatus.DOWNLOADED -> stringResource(R.string.episode_line_downloaded)
+        DayEpisodeStatus.FAILED -> stringResource(R.string.episode_line_failed, ep.error ?: "")
+    }
+    return when {
+        ep.pinned -> stringResource(R.string.episode_line_pinned, state, ep.title.orEmpty())
+        ep.duplicated -> stringResource(R.string.episode_line_duplicated, state)
+        else -> state
+    }
+}
+
+@Composable
+private fun modeLabel(mode: DownloadMode, rollingDays: Int): String = when (mode) {
+    DownloadMode.ALL -> stringResource(R.string.download_mode_all)
+    DownloadMode.ROLLING -> pluralStringResource(R.plurals.download_mode_rolling, rollingDays, rollingDays)
+    DownloadMode.OFF -> stringResource(R.string.download_mode_off)
+}
+
+/** Change how episodes are fetched ahead of time (spec 0003 §8.1). Nothing is deleted on switching. */
+@Composable
+private fun DownloadModeDialog(current: DownloadMode, rollingDays: Int, onDismiss: () -> Unit, onChoose: (DownloadMode) -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.plan_download_mode)) },
+        text = {
+            Column {
+                for (mode in DownloadMode.entries) {
+                    Row(
+                        Modifier.fillMaxWidth().clickable { onChoose(mode) }.padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = mode == current, onClick = null)
+                        Text(modeLabel(mode, rollingDays), Modifier.padding(start = 8.dp))
+                    }
+                }
+                Text(stringResource(R.string.download_mode_note), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
+}
+
+/**
+ * Pick the episode for [day] (spec 0003 §7.4): the cycle's episodes that no day uses, newest
+ * first, and the whole feed behind "Show all".
+ */
+@Composable
+private fun PinDialog(day: Int, podcast: EnrollmentPodcastUi, onDismiss: () -> Unit, onPick: (String) -> Unit) {
+    var showAll by rememberSaveable { mutableStateOf(podcast.unassigned.isEmpty()) }
+    val candidates = if (showAll) podcast.all else podcast.unassigned
+    val dates = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.episode_pin_title, day)) },
+        text = {
+            LazyColumn(Modifier.heightIn(max = 420.dp)) {
+                if (candidates.isEmpty()) item { Text(stringResource(R.string.episode_pin_none)) }
+                items(candidates, key = { it.guidHash }) { c ->
+                    ListItem(
+                        headlineContent = { Text(c.title) },
+                        supportingContent = { Text(Instant.ofEpochMilli(c.pubDate).atZone(ZoneId.systemDefault()).toLocalDate().format(dates)) },
+                        modifier = Modifier.clickable { onPick(c.guidHash) },
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            if (!showAll) TextButton(onClick = { showAll = true }) { Text(stringResource(R.string.episode_pin_show_all)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 }
 

@@ -681,10 +681,12 @@ class PlaybackService : MediaLibraryService() {
      * queue starts, whatever the calendar says (spec 0003 §6.2).
      */
     private fun maybeAppendNextDay(mediaItem: MediaItem?) {
-        if (!settings.continueToNextDay) return
         val id = mediaItem?.let { MediaId.parse(it.mediaId) } as? MediaId.PlanItem ?: return
         if (player.currentMediaItemIndex != player.mediaItemCount - 1) return
         scope.launch {
+            // Read the setting now rather than the cached copy: a switch flipped just before
+            // playback starts may not have reached the collector yet.
+            if (!settingsRepository.current().continueToNextDay) return@launch
             val next = planRepository.nextDayAfter(id.enrollmentId, id.day) ?: return@launch
             val summary = planRepository.summary(id.enrollmentId) ?: return@launch
             val nextItems = runCatching { planItems(summary, next) }.getOrNull() ?: return@launch

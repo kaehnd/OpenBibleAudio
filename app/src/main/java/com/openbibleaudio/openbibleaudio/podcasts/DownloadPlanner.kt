@@ -39,14 +39,14 @@ object DownloadPlanner {
     }
 
     /**
-     * The download queue for one feed: every enrollment's wanted episodes, interleaved so each
-     * enrollment's next day comes early, without duplicates. Downloaded episodes and ones that
-     * failed for good ([DownloadState.FAILED]) are left out.
+     * The download queue for one feed: episodes the listener asked for ([requested], e.g. a day's
+     * "Download"), then every enrollment's wanted episodes, interleaved so each enrollment's next
+     * day comes early. No duplicates. Downloaded episodes and ones that failed for good
+     * ([DownloadState.FAILED]) are left out.
      */
-    fun queue(enrollments: List<EnrollmentEpisodes>): List<PodcastEpisodeEntity> {
+    fun queue(enrollments: List<EnrollmentEpisodes>, requested: List<PodcastEpisodeEntity> = emptyList()): List<PodcastEpisodeEntity> {
         val ranked = enrollments.flatMap { e -> wantedDays(e).mapIndexedNotNull { rank, day -> e.episodes[day]?.let { rank to it } } }
-        return ranked.sortedBy { it.first }
-            .map { it.second }
+        return (requested + ranked.sortedBy { it.first }.map { it.second })
             .distinctBy { it.guidHash }
             .filter { it.downloadState != DownloadState.DOWNLOADED && it.downloadState != DownloadState.FAILED }
     }

@@ -14,6 +14,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.EventNote
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Storage
+import com.openbibleaudio.openbibleaudio.ui.plans.StorageScreen
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -55,6 +57,7 @@ import kotlinx.serialization.Serializable
 @Serializable data class ChaptersRoute(val versionId: String, val book: String)
 @Serializable object NowPlayingRoute
 @Serializable object SettingsRoute
+@Serializable object StorageRoute
 @Serializable object AboutRoute
 @Serializable object PlansRoute
 @Serializable data class EnrollmentRoute(val enrollmentId: Long)
@@ -98,6 +101,7 @@ private fun App(player: PlayerViewModel) {
         destination?.hasRoute(ChaptersRoute::class) == true -> entry!!.toRoute<ChaptersRoute>().book.let { Book.fromUsfm(it)?.let(titles::book) ?: it }
         onNowPlaying -> stringResource(R.string.now_playing)
         destination?.hasRoute(SettingsRoute::class) == true -> stringResource(R.string.settings)
+        destination?.hasRoute(StorageRoute::class) == true -> stringResource(R.string.storage)
         destination?.hasRoute(AboutRoute::class) == true -> stringResource(R.string.about)
         onPlans || destination?.hasRoute(EnrollmentRoute::class) == true -> stringResource(R.string.nav_plans)
         else -> stringResource(R.string.library_title)
@@ -115,6 +119,10 @@ private fun App(player: PlayerViewModel) {
                     }
                 },
                 actions = {
+                    if (onPlans) {
+                        // Plans → Storage (spec 0003 §8.3).
+                        IconButton(onClick = { nav.navigate(StorageRoute) }) { Icon(Icons.Default.Storage, stringResource(R.string.storage)) }
+                    }
                     if (atRoot) {
                         IconButton(onClick = { nav.navigate(SettingsRoute) }) { Icon(Icons.Default.Settings, stringResource(R.string.settings)) }
                     }
@@ -165,6 +173,7 @@ private fun App(player: PlayerViewModel) {
             composable<NowPlayingRoute> { NowPlayingScreen(playerState, player, padding) }
             composable<SettingsRoute> { SettingsScreen(hiltViewModel(), padding) { nav.navigate(AboutRoute) } }
             composable<AboutRoute> { AboutScreen(hiltViewModel(), padding) }
+            composable<StorageRoute> { StorageScreen(hiltViewModel(), padding) }
             composable<PlansRoute> {
                 PlansScreen(hiltViewModel(), padding, onOpen = { nav.navigate(EnrollmentRoute(it)) }) { mediaId ->
                     player.playMediaId(mediaId)

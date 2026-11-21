@@ -118,9 +118,10 @@ class EpisodeDownloadWorker @AssistedInject constructor(
 
         /**
          * Queues a run for [feedId]. APPEND_OR_REPLACE: a running download finishes first, and the
-         * appended run picks up whatever is still wanted then (spec 0003 §8.2).
+         * appended run picks up whatever is still wanted then (spec 0003 §8.2). [replace] cancels
+         * the running one instead (its `.part` is kept), e.g. when the network setting changed.
          */
-        fun enqueue(workManager: WorkManager, feedId: String, unmeteredOnly: Boolean) {
+        fun enqueue(workManager: WorkManager, feedId: String, unmeteredOnly: Boolean, replace: Boolean = false) {
             val request = OneTimeWorkRequestBuilder<EpisodeDownloadWorker>()
                 .setInputData(workDataOf(KEY_FEED_ID to feedId))
                 .addTag(TAG)
@@ -132,7 +133,11 @@ class EpisodeDownloadWorker @AssistedInject constructor(
                 )
                 .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
                 .build()
-            workManager.enqueueUniqueWork(uniqueName(feedId), ExistingWorkPolicy.APPEND_OR_REPLACE, request)
+            workManager.enqueueUniqueWork(
+                uniqueName(feedId),
+                if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.APPEND_OR_REPLACE,
+                request,
+            )
         }
 
         private fun ensureChannel(context: Context) {

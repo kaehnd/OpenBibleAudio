@@ -1,6 +1,7 @@
 package com.openbibleaudio.openbibleaudio.plans
 
 import com.openbibleaudio.openbibleaudio.data.db.EnrollmentState
+import com.openbibleaudio.openbibleaudio.podcasts.EpisodeProgress
 
 /**
  * What an enrollment card on the phone says (spec 0003 §9.3, §6.3), as data so it's testable;
@@ -18,6 +19,8 @@ data class PlanCard(
     /** "Today's reading done ✓ — keep going with Day N": set when the calendar day is already done. */
     val keepGoingDay: Int?,
     val paused: Boolean,
+    /** Episode downloads ("312 / 365 downloaded"), for plans with a podcast. */
+    val episodes: EpisodeProgress? = null,
 ) {
     sealed interface Badge {
         data class Behind(val days: Int) : Badge
@@ -27,7 +30,7 @@ data class PlanCard(
     val finished: Boolean get() = currentDay == null
 
     companion object {
-        fun from(s: EnrollmentSummary): PlanCard {
+        fun from(s: EnrollmentSummary, episodes: EpisodeProgress? = null): PlanCard {
             val p = s.position
             val badge = when {
                 p.finished -> null
@@ -44,6 +47,7 @@ data class PlanCard(
                 badge = badge,
                 keepGoingDay = p.currentDay.takeIf { p.upNext },
                 paused = s.enrollment.state == EnrollmentState.PAUSED,
+                episodes = episodes,
             )
         }
     }

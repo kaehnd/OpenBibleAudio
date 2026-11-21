@@ -122,6 +122,12 @@ interface PlanDao {
 
     @Query("SELECT * FROM manual_pin WHERE enrollmentId = :enrollmentId")
     suspend fun pins(enrollmentId: Long): List<ManualPinEntity>
+
+    @Query("SELECT * FROM manual_pin")
+    fun observeAllPins(): Flow<List<ManualPinEntity>>
+
+    @Query("DELETE FROM manual_pin WHERE enrollmentId = :enrollmentId AND day = :day")
+    suspend fun deletePin(enrollmentId: Long, day: Int)
 }
 
 @Dao
@@ -137,6 +143,9 @@ interface PodcastDao {
 
     @Query("SELECT * FROM podcast_episode WHERE feedId = :feedId AND guidHash = :guidHash")
     suspend fun episode(feedId: String, guidHash: String): PodcastEpisodeEntity?
+
+    @Query("SELECT * FROM podcast_episode")
+    fun observeAllEpisodes(): Flow<List<PodcastEpisodeEntity>>
 
     /** The episode matched to [day] of [cycle] (null cycle = a plan with no cycle block). */
     @Query(

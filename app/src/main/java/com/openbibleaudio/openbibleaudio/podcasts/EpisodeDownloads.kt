@@ -13,8 +13,9 @@ import java.time.Clock
 
 /**
  * Glue between enrollments and the download worker (spec 0003 §8): what to download for a
- * feed, when to start the worker, and retention. [schedule] starts (or appends to) the feed's
- * unique download work. It's a function so tests can capture it without WorkManager.
+ * feed, when to start the worker, per-episode actions, and retention. [schedule] starts the
+ * feed's unique download work, appending to a running one unless `replace` is set. It's a
+ * function so tests can capture it without WorkManager.
  */
 class EpisodeDownloads(
     private val plans: PlanRepository,
@@ -22,28 +23,61 @@ class EpisodeDownloads(
     private val podcastDao: PodcastDao,
     private val storage: PodcastStorage,
     private val settings: SettingsRepository,
-    private val schedule: (feedId: String, unmeteredOnly: Boolean) -> Unit,
+    private val schedule: (feedId: String, unmeteredOnly: Boolean, replace: Boolean) -> Unit,
     private val clock: Clock = Clock.systemDefaultZone(),
 ) {
-    /** The feed's download queue right now, from every ACTIVE enrollment that uses it. */
-    suspend fun queue(feedId: String): List<PodcastEpisodeEntity> =
-        DownloadPlanner.queue(enrollmentEpisodes(planDao.activeEnrollments(), feedId))
+    /**
+     * The feed's download queue right now: episodes asked for by hand that an ACTIVE enrollment
+     * uses, then what every ACTIVE enrollment's mode wants.
+     */
+    suspend fun queue(feedId: String): List<PodcastEpisodeEntity> {
+        val enrollments = enrollmentEpisodes(planDao.activeEnrollments(), feedId)
+        val requested = enrollments.flatMap { it.episodes.values }.filter { it.downloadState == DownloadState.QUEUED }.distinctBy { it.guidHash }
+        return DownloadPlanner.queue(enrollments, requested)
+    }
 
-    /** Starts the download worker for every feed that an ACTIVE enrollment downloads from. */
-    suspend fun startAll() {
+    /**
+     * Starts the download worker for every feed that an ACTIVE enrollment downloads from.
+     * [replace] restarts running work, so a changed network setting applies straight away.
+     */
+    suspend fun startAll(replace: Boolean = false) {
         val unmeteredOnly = settings.current().podcastUnmeteredOnly
         val feeds = planDao.activeEnrollments()
-            .filter { it.downloadMode != DownloadMode.OFF }
+            .filter { replace || it.downloadMode != DownloadMode.OFF }
             .mapNotNull { e -> plans.plan(e.planId, e.planVersion)?.podcast?.let(PodcastRepository::feedId) }
             .toSet()
-        feeds.forEach { schedule(it, unmeteredOnly) }
+        feeds.forEach { schedule(it, unmeteredOnly, replace) }
     }
 
     /** Starts the worker for [enrollmentId]'s feed, e.g. after enrolling or when a day completes. */
     suspend fun start(enrollmentId: Long) {
         val e = planDao.enrollment(enrollmentId) ?: return
         val podcast = plans.plan(e.planId, e.planVersion)?.podcast ?: return
-        schedule(PodcastRepository.feedId(podcast), settings.current().podcastUnmeteredOnly)
+        schedule(PodcastRepository.feedId(podcast), settings.current().podcastUnmeteredOnly, false)
+    }
+
+    /** A day's "Download" (spec 0003 §9.3): works in any mode, and retries a FAILED episode. */
+    suspend fun requestDownload(feedId: String, guidHash: String) {
+        val ep = podcastDao.episode(feedId, guidHash) ?: return
+        if (ep.downloadState == DownloadState.DOWNLOADED) return
+        podcastDao.setDownload(feedId, guidHash, DownloadState.QUEUED, null, ep.downloadedBytes, null)
+        schedule(feedId, settings.current().podcastUnmeteredOnly, false)
+    }
+
+    /** A day's "Delete episode": the file goes, the row (with its position) stays. */
+    suspend fun deleteEpisode(feedId: String, guidHash: String) {
+        storage.delete(feedId, guidHash)
+        podcastDao.setDownload(feedId, guidHash, DownloadState.NONE, null, null, null)
+    }
+
+    /**
+     * Storage → "Delete downloaded episodes" (spec 0003 §8.3): played ones only, or all.
+     * Returns how many files were deleted.
+     */
+    suspend fun deleteDownloads(playedOnly: Boolean): Int {
+        val doomed = podcastDao.episodesIn(DownloadState.DOWNLOADED).filter { !playedOnly || it.completedAt != null }
+        for (ep in doomed) deleteEpisode(ep.feedId, ep.guidHash)
+        return doomed.size
     }
 
     suspend fun setMode(enrollmentId: Long, mode: DownloadMode, rollingDays: Int = EnrollmentEntity.DEFAULT_ROLLING_DAYS) {
@@ -93,14 +127,6 @@ class EpisodeDownloads(
     }
 
     /** Day → episode for [e]: manual pins first, then the cycle's matches (spec 0003 §7.3). */
-    private suspend fun episodesByDay(e: EnrollmentEntity, plan: PlanDefinition, all: List<PodcastEpisodeEntity>): Map<Int, PodcastEpisodeEntity> {
-        val cycle = if (plan.podcast?.cycle == null) null else e.podcastCycle ?: return emptyMap()
-        val byDay = all.filter { it.cycle == cycle && it.matchedDay != null }
-            .groupBy { it.matchedDay!! }
-            .mapValues { (_, r) -> r.maxBy { it.pubDate } }
-            .toMutableMap()
-        val byHash = all.associateBy { it.guidHash }
-        for (pin in planDao.pins(e.id)) byHash[pin.guidHash]?.let { byDay[pin.day] = it }
-        return byDay
-    }
+    private suspend fun episodesByDay(e: EnrollmentEntity, plan: PlanDefinition, all: List<PodcastEpisodeEntity>): Map<Int, PodcastEpisodeEntity> =
+        DayEpisodes.view(plan, e.podcastCycle, all, planDao.pins(e.id)).byDay.mapValues { it.value.episode }
 }

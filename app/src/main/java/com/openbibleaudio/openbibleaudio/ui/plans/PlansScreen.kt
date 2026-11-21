@@ -165,6 +165,9 @@ private fun PlanCardView(card: PlanCard, onOpen: () -> Unit, onPlay: (String) ->
                 Text(stringResource(R.string.plan_card_keep_going, it), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
             }
             Text(stringResource(R.string.plan_card_done, card.daysDone, card.dayCount), style = MaterialTheme.typography.bodySmall)
+            card.episodes?.let {
+                Text(pluralStringResource(R.plurals.plan_card_episodes, it.matched, it.downloaded, it.matched), style = MaterialTheme.typography.bodySmall)
+            }
             if (card.paused) AssistChip(onClick = onOpen, label = { Text(stringResource(R.string.plan_paused)) })
             if (!card.finished) {
                 Button(onClick = { onPlay("plan/${card.enrollmentId}/today") }, modifier = Modifier.padding(top = 8.dp)) {

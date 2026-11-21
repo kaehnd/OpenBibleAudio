@@ -139,6 +139,70 @@
     <string name="enroll_confirm">Enroll</string>
     <string name="enroll_podcast">Podcast episodes</string>
     <string name="episodes_channel_name">Podcast downloads</string>
+    <plurals name="plan_card_episodes">
+        <item quantity="one">%1$d / %2$d episode downloaded</item>
+        <item quantity="other">%1$d / %2$d episodes downloaded</item>
+    </plurals>
+    <string name="storage">Storage</string>
+    <plurals name="storage_total">
+        <item quantity="one">%1$d downloaded episode · %2$s</item>
+        <item quantity="other">%1$d downloaded episodes · %2$s</item>
+    </plurals>
+    <plurals name="storage_enrollment">
+        <item quantity="one">%1$d episode · %2$s</item>
+        <item quantity="other">%1$d episodes · %2$s</item>
+    </plurals>
+    <string name="storage_none">No plan with a podcast yet.</string>
+    <plurals name="storage_delete_played">
+        <item quantity="one">Delete %1$d played episode</item>
+        <item quantity="other">Delete %1$d played episodes</item>
+    </plurals>
+    <string name="storage_delete_all">Delete all downloaded episodes</string>
+    <string name="storage_confirm_played">Delete played episodes?</string>
+    <string name="storage_confirm_all">Delete all downloaded episodes?</string>
+    <string name="storage_note">Where you stopped in each episode is kept. Plans set to download episodes fetch upcoming ones again.</string>
+    <string name="settings_podcasts">Podcasts</string>
+    <string name="settings_unmetered_only">Download on Wi-Fi only</string>
+    <string name="settings_unmetered_only_summary">Episodes wait for an unmetered network.</string>
+    <string name="settings_retention">Keep played episodes for</string>
+    <string name="settings_retention_now">Delete right away</string>
+    <plurals name="settings_days">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
+    <string name="settings_keep_played">Keep played episodes</string>
+    <string name="settings_keep_played_summary">Never delete an episode after it\'s played.</string>
+    <string name="settings_streaming">Stream episodes that aren\'t downloaded</string>
+    <string name="settings_streaming_summary">Uses mobile data while you listen. Off: a day plays its readings only.</string>
+    <string name="settings_podcast_speed">Podcast speed</string>
+    <string name="settings_speed">%1$sx</string>
+    <plurals name="plan_episodes_line">
+        <item quantity="one">%1$d / %2$d episode downloaded · %3$s</item>
+        <item quantity="other">%1$d / %2$d episodes downloaded · %3$s</item>
+    </plurals>
+    <string name="plan_download_mode">Download mode</string>
+    <string name="download_mode_all">Download all episodes</string>
+    <plurals name="download_mode_rolling">
+        <item quantity="one">Keep the next day downloaded</item>
+        <item quantity="other">Keep the next %1$d days downloaded</item>
+    </plurals>
+    <string name="download_mode_off">Don\'t download automatically</string>
+    <string name="download_mode_note">Switching doesn\'t delete anything. Played episodes are tidied up as usual.</string>
+    <string name="episode_download">Download episode</string>
+    <string name="episode_delete">Delete episode</string>
+    <string name="episode_pin">Choose episode…</string>
+    <string name="episode_unpin">Use the matched episode</string>
+    <string name="episode_pin_title">Episode for Day %1$d</string>
+    <string name="episode_pin_none">No episodes to choose from yet.</string>
+    <string name="episode_pin_show_all">Show all</string>
+    <string name="episode_line_none">No episode matched. Choose one from the menu.</string>
+    <string name="episode_line_not_downloaded">Episode not downloaded</string>
+    <string name="episode_line_queued">Episode waiting to download</string>
+    <string name="episode_line_downloading">Episode downloading…</string>
+    <string name="episode_line_downloaded">Episode downloaded</string>
+    <string name="episode_line_failed">Episode couldn\'t be downloaded: %1$s</string>
+    <string name="episode_line_pinned">%1$s · chosen: %2$s</string>
+    <string name="episode_line_duplicated">%1$s · uploaded more than once, using the latest</string>
     <string name="episode_state_downloaded">Episode ✓</string>
     <string name="episode_state_streaming">Episode streams</string>
     <string name="episode_state_not_downloaded">Episode not downloaded</string>

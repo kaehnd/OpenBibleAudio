@@ -68,8 +68,8 @@ object PodcastModule {
         storage: PodcastStorage,
         settings: SettingsRepository,
         workManager: WorkManager,
-    ) = EpisodeDownloads(plans, planDao, dao, storage, settings, { feedId, unmeteredOnly ->
-        EpisodeDownloadWorker.enqueue(workManager, feedId, unmeteredOnly)
+    ) = EpisodeDownloads(plans, planDao, dao, storage, settings, { feedId, unmeteredOnly, replace ->
+        EpisodeDownloadWorker.enqueue(workManager, feedId, unmeteredOnly, replace)
     })
 
     @Provides

@@ -13,7 +13,11 @@ import com.openbibleaudio.openbibleaudio.plans.PlanRepository
 import com.openbibleaudio.openbibleaudio.playback.VersionInfo
 import com.openbibleaudio.openbibleaudio.data.db.DownloadMode
 import com.openbibleaudio.openbibleaudio.data.db.EnrollmentEntity
+import com.openbibleaudio.openbibleaudio.data.db.PlanDao
+import com.openbibleaudio.openbibleaudio.data.db.PodcastDao
+import com.openbibleaudio.openbibleaudio.podcasts.DayEpisodes
 import com.openbibleaudio.openbibleaudio.podcasts.DownloadPlanner
+import com.openbibleaudio.openbibleaudio.podcasts.EpisodeProgress
 import com.openbibleaudio.openbibleaudio.podcasts.EpisodeDownloads
 import com.openbibleaudio.openbibleaudio.podcasts.FeedRefreshResult
 import com.openbibleaudio.openbibleaudio.podcasts.PodcastStorage
@@ -116,6 +120,8 @@ class PlansViewModel @Inject constructor(
     private val downloads: EpisodeDownloads,
     private val storage: PodcastStorage,
     private val workManager: WorkManager,
+    podcastDao: PodcastDao,
+    planDao: PlanDao,
     library: LibraryRepository,
 ) : ViewModel() {
     init {
@@ -129,8 +135,19 @@ class PlansViewModel @Inject constructor(
         }
     }
 
-    val ui: StateFlow<PlansUi?> = combine(plans.enrollments, plans.plans, library.snapshot.map { it.versions }) { enrollments, imported, versions ->
-        PlansUi(enrollments.map(PlanCard::from), imported, versions)
+    val ui: StateFlow<PlansUi?> = combine(
+        plans.enrollments, plans.plans, library.snapshot.map { it.versions }, podcastDao.observeAllEpisodes(), planDao.observeAllPins(),
+    ) { enrollments, imported, versions, episodes, pins ->
+        val byFeed = episodes.groupBy { it.feedId }
+        val cards = enrollments.map { s ->
+            // Episode downloads on the card (spec 0003 §9.3).
+            val progress = s.plan.podcast?.let { p ->
+                val view = DayEpisodes.view(s.plan, s.enrollment.podcastCycle, byFeed[PodcastRepository.feedId(p)].orEmpty(), pins.filter { it.enrollmentId == s.enrollment.id })
+                EpisodeProgress.of(view, s.plan.dayCount)
+            }
+            PlanCard.from(s, progress)
+        }
+        PlansUi(cards, imported, versions)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _dialog = MutableStateFlow<PlansDialog?>(null)
