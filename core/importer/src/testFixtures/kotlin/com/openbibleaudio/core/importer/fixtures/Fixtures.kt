@@ -26,11 +26,12 @@ object BsbNames {
     fun abbreviation(book: Book): String =
         abbreviations[book] ?: (book.usfm.take(1) + book.usfm.drop(1).lowercase())
 
-    fun fileName(book: Book, chapter: Int): String =
-        "BSB_%02d_%s_%03d_G.mp3".format(book.ordinal + 1, abbreviation(book), chapter)
+    fun fileName(book: Book, chapter: Int, suffix: String = "_G"): String =
+        "BSB_%02d_%s_%03d%s.mp3".format(book.ordinal + 1, abbreviation(book), chapter, suffix)
 
     /** All 1189 chapter file names. */
-    fun all(): List<String> = Book.entries.flatMap { b -> (1..b.chapterCount).map { fileName(b, it) } }
+    fun all(suffix: String = "_G"): List<String> =
+        Book.entries.flatMap { b -> (1..b.chapterCount).map { fileName(b, it, suffix) } }
 }
 
 /**

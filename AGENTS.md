@@ -54,9 +54,11 @@ android build "?:app:assembleDebug"  # same via Android CLI (any Gradle task wor
 ## Importer CLI (Audio Bible Packs)
 
 ```bash
-python tools/download_bsb_gilbert.py                 # BSB test corpus → bible_audio/bsb_gilbert (gitignored, ~6 GB)
+python tools/download_openbible_audio.py gilbert     # BSB test corpus → bible_audio/bsb_gilbert (gitignored, ~6 GB)
+python tools/download_openbible_audio.py souer       # BSB, Souer narration → bible_audio/bsb_souer (~5 GB)
 ./gradlew :tools:importer-cli:run --args="profiles"
 ./gradlew :tools:importer-cli:run --args="generate bible_audio/bsb_gilbert --profile bsb-gilbert"
+./gradlew :tools:importer-cli:run --args="generate bible_audio/bsb_souer --profile bsb-souer"
 ./gradlew :tools:importer-cli:run --args="validate bible_audio/bsb_gilbert"
 ```
 
@@ -83,6 +85,7 @@ check it against the live feed with:
 
 # Opt-in test against the real BSB corpus (skipped unless the folder is given)
 ./gradlew :core:importer:test --tests "*BsbCorpusTest*" -Poba.corpus.bsb=<abs path>/bible_audio/bsb_gilbert
+./gradlew :core:importer:test --tests "*BsbCorpusTest*" -Poba.corpus.bsb=<abs path>/bible_audio/bsb_souer -Poba.corpus.profile=bsb-souer
 
 # Opt-in test against a saved copy of the real Bible Recap feed (skipped unless given)
 ./gradlew :core:podcast:test --tests "*TbrFeedTest*" -Poba.feed.tbr=<abs path>/feed.xml -Poba.plan.tbr=<abs path>/plans/bible-recap-chronological.json

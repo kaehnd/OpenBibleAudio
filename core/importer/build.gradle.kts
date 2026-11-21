@@ -33,4 +33,5 @@ tasks.test {
     // Opt-in real-corpus test (spec 0001 §8): ./gradlew :core:importer:test -Poba.corpus.bsb=<dir>
     // The OBA_CORPUS_BSB environment variable works too (inherited by the test JVM).
     providers.gradleProperty("oba.corpus.bsb").orNull?.let { systemProperty("oba.corpus.bsb", it) }
+    providers.gradleProperty("oba.corpus.profile").orNull?.let { systemProperty("oba.corpus.profile", it) }
 }

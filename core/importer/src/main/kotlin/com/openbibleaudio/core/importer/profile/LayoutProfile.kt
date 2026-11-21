@@ -58,7 +58,7 @@ fun interface ProfileCheck {
 
 /** The built-in profiles (spec 0001 §6.3). */
 object LayoutProfiles {
-    val all: List<LayoutProfile> = listOf(BsbGilbertProfile.profile)
+    val all: List<LayoutProfile> = listOf(BsbGilbertProfile.profile, BsbSouerProfile.profile)
 
     fun byId(id: String): LayoutProfile? = all.firstOrNull { it.id == id }
 }

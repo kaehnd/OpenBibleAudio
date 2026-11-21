@@ -57,8 +57,8 @@ that the shared validator accepts.
 
 ## 3. Test corpus: BSB (Gilbert)
 
-**How to get it.** `python tools/download_bsb_gilbert.py [dest]` downloads (and can resume) the
-whole index from `https://openbible.com/audio/gilbert/` into `bible_audio/bsb_gilbert/` by default.
+**How to get it.** `python tools/download_openbible_audio.py gilbert [dest]` downloads (and can
+resume) every MP3 in `https://openbible.com/audio/gilbert/` into `bible_audio/bsb_gilbert/` by default.
 `/bible_audio` is gitignored. Audio never goes into the repo.
 
 **What it looks like** (as of 2026-11-08):
@@ -76,6 +76,19 @@ whole index from `https://openbible.com/audio/gilbert/` into `bible_audio/bsb_gi
 
 The profile must handle both the regular `{abbr}` codes and the `Tts` exception through a
 general alias map, not a special case in code.
+
+**Second recording: BSB (Souer).** `python tools/download_openbible_audio.py souer` fetches
+`https://openbible.com/audio/souer/` into `bible_audio/bsb_souer/` (profile `bsb-souer`, §6.3).
+As of 2026-11-20 it differs from Gilbert in these ways:
+
+| Property | Value |
+|---|---|
+| Files | 1189 chapter MP3s plus two testament zips (`BSB_00_Souer_OT.zip`, `BSB_00_Souer_NT.zip`, ~5 GB together). The zips duplicate the MP3s, so the script skips them. |
+| Naming | Gilbert's scheme without the narrator suffix: `BSB_{order:2}_{abbr}_{chapter:3}.mp3`. Same `{abbr}` codes, including `Tts`. |
+| Codec | MPEG-1 Layer III CBR, 44.1 kHz, mono, but **two bitrates**: 192 kbps for the OT (929 files) and 128 kbps for the NT (260 files). Unlike Gilbert, frames use normal bit-reservoir padding (mixed 626/627-byte frames at 192 kbps). |
+| Size / duration | 5.50 GB, 69 h 14 m. |
+| VBR header | A LAME **`Info`** frame holds the frame count, so the probe reads that instead of walking every frame. |
+| Tags | A small leading ID3v2.3 tag and **no** ID3v1 tag. |
 
 ---
 
@@ -327,7 +340,7 @@ data class ChapterMatch(val book: Book, val chapter: Int, val path: String, val 
   the report, never silently dropped). It does **not** go into `files[]`.
 - A match whose book alias doesn't resolve is an ERROR (`UNKNOWN_BOOK_ALIAS`). The usual cause
   is a profile bug, and guessing would mislabel audio.
-- Registered in `LayoutProfiles.all`. Phase 1 contains only `bsb-gilbert`.
+- Registered in `LayoutProfiles.all`. Phase 1 contains `bsb-gilbert` and `bsb-souer`.
 
 **`bsb-gilbert` profile:**
 
@@ -346,6 +359,10 @@ LayoutProfile(
     checks = listOf(ProfileCheck.orderMatchesCanon("order")),
 )
 ```
+
+**`bsb-souer` profile:** the same except for `id`/`versionId = "bsb-souer"`, the description, and
+a `pathPattern` without the `_G` suffix. One shared helper (`OpenBibleBsb.profile`) builds both.
+A Gilbert file never matches `bsb-souer`, and a Souer file never matches `bsb-gilbert`.
 
 ### 6.4 `AudioProbe`
 

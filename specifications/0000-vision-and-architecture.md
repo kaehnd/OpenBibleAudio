@@ -151,7 +151,7 @@ Sketch of format version 1. The full, normative schema is in
     `java.io.File` (CLI) and, later, SAF `DocumentFile` (on-device import).
   - **Layout profiles** turn vendor layouts into book/chapter. A profile is mainly declarative
     (filename/folder regexes plus book-name aliases) with a code escape hatch for odd cases.
-    Phase 1 ships one profile, `bsb-gilbert` (the BSB test corpus). Profiles are compiled-in
+    Phase 1 ships `bsb-gilbert` (the BSB test corpus) and `bsb-souer` (a second BSB narration). Profiles are compiled-in
     Kotlin data for now. The CSB profile follows in Phase 5.
   - Durations come from a pluggable `AudioProbe`. The CLI uses a built-in pure-Kotlin MP3
     frame scanner, with `ffprobe` as an optional fallback for other formats. On device it's
@@ -379,6 +379,7 @@ milestones M2 and M3.
 | 2026-11-08 | Phase 1 split into 1a/1b; BSB replaces CSB as Phase 1 corpus | Specs 0001 and 0002. The CSB profile moves to Phase 5. AD-5: the first profile is `bsb-gilbert`, profiles are compiled-in Kotlin data, and the CLI's `AudioProbe` is a built-in MP3 frame scanner (the BSB files are CBR MP3 with no Xing header, and ffprobe isn't assumed). |
 | 2026-11-08 | AD-3: chapter-group node | Adds `bible/{v}/{BOOK}/{from}-{to}` so long chapter lists (PSA, ISA) stay within Auto list limits (spec 0002 §7.4). |
 | 2026-11-08 | AD-3, AD-8, AD-9, AD-12: plans & podcast cycles | Spec 0003. The Bible Recap republishes the same 365 episodes every year and its feed keeps only the 999 newest items, so: episodes are grouped into cycles (`itunes:season`), an enrollment pins one (default: latest complete, e.g. 2025), matched episodes are snapshotted, and download modes are ALL / ROLLING (14) / OFF instead of "next 7 days". New IDs `today`, `plan`, `plan/{e}/days/{from}-{to}`, `plan/{e}/day/{n}/{i}`. New module `:core:podcast`. Phases 2–3 share one spec. |
+| 2026-11-20 | AD-5: second profile `bsb-souer` | The Souer BSB narration on openbible.com uses the Gilbert naming without the `_G` suffix, so it gets its own compiled-in profile (spec 0001 §3, §6.3). The download script becomes `tools/download_openbible_audio.py <narrator>`. |
 
 ---
 
