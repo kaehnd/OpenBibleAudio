@@ -345,6 +345,12 @@ manual_pin
   chosen key is stored in `enrollment.podcastCycle`. **An enrollment never changes cycle by
   itself.** When Year 8 is complete, *new* enrollments default to it, and existing ones stay on Year 7.
 - The cycle label's year is the most common `pubDate` year among the cycle's matched episodes.
+- Plans don't name their cycles, so the app labels them by `cycle.key`: *"Season 7 · 2025"*
+  (`itunesSeason`), *"Cycle 7 · 2025"* (`titleRegex`) or *"2025"* (`pubDateYear`).
+- Enrolling works offline. The dialog then says so, and the enrollment's cycle stays null until a
+  later refresh can pick the default. Only a null cycle is filled in; a chosen one never changes.
+- A refresh writes only the feed-owned columns of `podcast_episode`. Download state, position and
+  completion belong to the worker and the player, so a refresh can't overwrite them.
 
 ### 7.3 Matching & snapshot
 - For each item in the feed whose `episodeType` passes the filter and whose title matches

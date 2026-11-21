@@ -39,6 +39,7 @@ import com.openbibleaudio.openbibleaudio.library.BibleAudioSource
 import com.openbibleaudio.openbibleaudio.plans.DayQueue
 import com.openbibleaudio.openbibleaudio.plans.EnrollmentSummary
 import com.openbibleaudio.openbibleaudio.plans.EpisodeAvailability
+import com.openbibleaudio.openbibleaudio.podcasts.PodcastRepository
 import com.openbibleaudio.openbibleaudio.plans.EpisodeUnavailable
 import com.openbibleaudio.openbibleaudio.plans.PlanQueueBuilder
 import com.openbibleaudio.openbibleaudio.plans.PlanRepository
@@ -75,6 +76,7 @@ class PlaybackService : MediaLibraryService() {
     @Inject lateinit var audioSource: BibleAudioSource
     @Inject lateinit var completions: CompletionDao
     @Inject lateinit var planRepository: PlanRepository
+    @Inject lateinit var podcasts: PodcastRepository
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val snapshot = MutableStateFlow<LibrarySnapshot?>(null)
@@ -261,8 +263,10 @@ class PlaybackService : MediaLibraryService() {
         val version = planVersion(summary, s) ?: throw NotFound(getString(R.string.browse_no_library))
         val episode = if (summary.plan.podcast == null) {
             EpisodeAvailability.Unavailable(EpisodeUnavailable.NO_PODCAST)
+        } else if (podcasts.episodeForDay(summary.enrollment, summary.plan, day) == null) {
+            EpisodeAvailability.Unavailable(EpisodeUnavailable.NOT_MATCHED)
         } else {
-            // Episodes arrive with downloads (spec 0003 M3).
+            // A matched episode joins the queue once downloads and episode items land (spec 0003 §8).
             EpisodeAvailability.Unavailable(EpisodeUnavailable.NOT_DOWNLOADED)
         }
         val queue = PlanQueueBuilder.build(summary.enrollment.id, summary.plan, day, s.chapters(version.versionId), episode)

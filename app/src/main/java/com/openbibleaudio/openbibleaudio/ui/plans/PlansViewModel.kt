@@ -11,6 +11,12 @@ import com.openbibleaudio.openbibleaudio.plans.PlanCard
 import com.openbibleaudio.openbibleaudio.plans.PlanImportResult
 import com.openbibleaudio.openbibleaudio.plans.PlanRepository
 import com.openbibleaudio.openbibleaudio.playback.VersionInfo
+import com.openbibleaudio.openbibleaudio.podcasts.FeedRefreshResult
+import com.openbibleaudio.openbibleaudio.podcasts.FeedRefreshWorker
+import com.openbibleaudio.openbibleaudio.podcasts.PodcastRepository
+import androidx.work.WorkManager
+import com.openbibleaudio.core.model.plan.CycleKey
+import com.openbibleaudio.core.podcast.Cycle
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -21,6 +27,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.FileNotFoundException
@@ -44,8 +51,40 @@ sealed interface PlansDialog {
     /** Import didn't produce a new plan: invalid, unreadable, or already imported. */
     data class ImportProblem(val result: PlanImportResult) : PlansDialog
 
-    /** [notes] are non-error findings from import, e.g. partial coverage. */
-    data class Enroll(val plan: PlanChoice, val notes: List<Issue> = emptyList()) : PlansDialog
+    /**
+     * [notes] are non-error findings from import, e.g. partial coverage. [podcast] is null for a
+     * plan without a podcast.
+     */
+    data class Enroll(val plan: PlanChoice, val notes: List<Issue> = emptyList(), val podcast: EnrollPodcast? = null) : PlansDialog
+}
+
+/** One podcast cycle as the enroll dialog lists it (spec 0003 §7.2). */
+data class CycleOption(val key: Int?, val year: Int?, val matched: Int, val dayCount: Int) {
+    val complete: Boolean get() = matched == dayCount
+
+    companion object {
+        fun from(c: Cycle) = CycleOption(c.key, c.year, c.matchedDays, c.dayCount)
+    }
+}
+
+/** The podcast part of the enroll dialog. */
+sealed interface EnrollPodcast {
+    data object Loading : EnrollPodcast
+
+    /**
+     * [cycles] is newest first. [cycleKind] is null for a plan without a cycle block (then
+     * [cycles] has at most one entry). [refreshError] is set when the feed couldn't be fetched
+     * just now and the list comes from an earlier snapshot.
+     */
+    data class Ready(
+        val cycles: List<CycleOption>,
+        val defaultKey: Int?,
+        val cycleKind: CycleKey?,
+        val refreshError: String?,
+    ) : EnrollPodcast
+
+    /** No snapshot and the feed couldn't be fetched. Enrolling still works; matching happens later. */
+    data class Failed(val message: String) : EnrollPodcast
 }
 
 /** The Plans tab (spec 0003 §9.3): enrollment cards, import, and enroll. */
@@ -53,8 +92,20 @@ sealed interface PlansDialog {
 class PlansViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val plans: PlanRepository,
+    private val podcasts: PodcastRepository,
+    private val workManager: WorkManager,
     library: LibraryRepository,
 ) : ViewModel() {
+    init {
+        // Opening Plans refreshes feeds older than 12 h (spec 0003 §7.1).
+        viewModelScope.launch {
+            if (plans.activePodcastPlans().isNotEmpty()) {
+                FeedRefreshWorker.schedule(workManager)
+                podcasts.refreshActive()
+            }
+        }
+    }
+
     val ui: StateFlow<PlansUi?> = combine(plans.enrollments, plans.plans, library.snapshot.map { it.versions }) { enrollments, imported, versions ->
         PlansUi(enrollments.map(PlanCard::from), imported, versions)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
@@ -74,19 +125,44 @@ class PlansViewModel @Inject constructor(
             }
             // A freshly imported plan goes straight to Enroll (spec 0003 §6.1).
             _dialog.value = when (result) {
-                is PlanImportResult.Imported -> PlansDialog.Enroll(PlanChoice(result.id, result.version, result.name), result.notes)
+                is PlanImportResult.Imported -> {
+                    openEnroll(PlanChoice(result.id, result.version, result.name), result.notes)
+                    return@launch
+                }
                 else -> PlansDialog.ImportProblem(result)
             }
         }
     }
 
     fun showEnroll(plan: PlanEntity) {
-        _dialog.value = PlansDialog.Enroll(PlanChoice(plan.id, plan.version, plan.name))
+        viewModelScope.launch { openEnroll(PlanChoice(plan.id, plan.version, plan.name)) }
     }
 
-    fun enroll(plan: PlanChoice, versionId: String?, startDate: LocalDate) {
+    /** Shows the dialog straight away; for a podcast plan, fetches the feed to list its cycles. */
+    private suspend fun openEnroll(choice: PlanChoice, notes: List<Issue> = emptyList()) {
+        val plan = plans.plan(choice.id, choice.version)
+        val podcast = plan?.podcast
+        _dialog.value = PlansDialog.Enroll(choice, notes, if (podcast != null) EnrollPodcast.Loading else null)
+        if (plan == null || podcast == null) return
+
+        val refresh = podcasts.refresh(plan)
+        val cycles = podcasts.cycles(plan)
+        val error = (refresh as? FeedRefreshResult.Failed)?.message
+        val state = if (cycles.isEmpty() && error != null) {
+            EnrollPodcast.Failed(error)
+        } else {
+            EnrollPodcast.Ready(cycles.map(CycleOption::from), podcasts.defaultCycle(plan, cycles)?.key, podcast.cycle?.key, error)
+        }
+        // Only if the same dialog is still open.
+        _dialog.update { d -> if (d is PlansDialog.Enroll && d.plan == choice) d.copy(podcast = state) else d }
+    }
+
+    fun enroll(plan: PlanChoice, versionId: String?, startDate: LocalDate, podcastCycle: Int?) {
         _dialog.value = null
-        viewModelScope.launch { plans.enroll(plan.id, plan.version, versionId = versionId, startDate = startDate) }
+        viewModelScope.launch {
+            plans.enroll(plan.id, plan.version, versionId = versionId, startDate = startDate, podcastCycle = podcastCycle)
+            if (plans.plan(plan.id, plan.version)?.podcast != null) FeedRefreshWorker.schedule(workManager)
+        }
     }
 
     fun dismissDialog() {

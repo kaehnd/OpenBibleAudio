@@ -9,6 +9,7 @@ import androidx.room.Transaction
 import androidx.room.Update
 import androidx.room.Upsert
 import com.openbibleaudio.openbibleaudio.plans.DayStatus
+import com.openbibleaudio.openbibleaudio.podcasts.EpisodeMetadata
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -139,6 +140,29 @@ interface PodcastDao {
 
     @Upsert
     suspend fun upsertEpisodes(episodes: List<PodcastEpisodeEntity>)
+
+    @Query("SELECT * FROM podcast_feed WHERE feedId = :feedId")
+    fun observeFeed(feedId: String): Flow<PodcastFeedEntity?>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertEpisodes(episodes: List<PodcastEpisodeEntity>)
+
+    /** Writes only the feed-owned columns, leaving download, position and completion alone. */
+    @Update(entity = PodcastEpisodeEntity::class)
+    suspend fun updateEpisodeMetadata(rows: List<EpisodeMetadata>)
+
+    @Query("SELECT guidHash FROM podcast_episode WHERE feedId = :feedId")
+    suspend fun guidHashes(feedId: String): List<String>
+
+    /** One refresh as a unit (spec 0003 §7.3): new rows inserted, known rows updated in place. */
+    @Transaction
+    suspend fun applyRefresh(feed: PodcastFeedEntity, rows: List<EpisodeMetadata>) {
+        upsertFeed(feed)
+        val known = guidHashes(feed.feedId).toHashSet()
+        val (existing, added) = rows.partition { it.guidHash in known }
+        if (added.isNotEmpty()) insertEpisodes(added.map { it.toNewEntity() })
+        if (existing.isNotEmpty()) updateEpisodeMetadata(existing)
+    }
 
     @Query(
         "UPDATE podcast_episode SET downloadState = :state, localPath = :localPath, " +

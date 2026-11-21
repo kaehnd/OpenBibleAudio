@@ -137,6 +137,24 @@
     <string name="enroll_start">Start date: %1$s</string>
     <string name="enroll_start_note">The start date only sets how far behind or ahead you are. You can always keep going to the next day.</string>
     <string name="enroll_confirm">Enroll</string>
+    <string name="enroll_podcast">Podcast episodes</string>
+    <string name="enroll_podcast_checking">Checking the podcast feed…</string>
+    <string name="enroll_podcast_failed">Couldn\'t reach the podcast feed (%1$s). You can enroll now. Episodes are matched once the feed can be reached.</string>
+    <string name="enroll_podcast_stale">Couldn\'t refresh the feed just now (%1$s), so this list may be out of date.</string>
+    <string name="enroll_podcast_none">No episodes in the feed match this plan yet.</string>
+    <plurals name="enroll_podcast_partial">
+        <item quantity="one">Only %1$d of %2$d episodes is available for %3$s.</item>
+        <item quantity="other">Only %1$d of %2$d episodes are available for %3$s.</item>
+    </plurals>
+    <string name="cycle_season">Season %1$d</string>
+    <string name="cycle_season_year">Season %1$d · %2$d</string>
+    <string name="cycle_generic">Cycle %1$d</string>
+    <string name="cycle_generic_year">Cycle %1$d · %2$d</string>
+    <string name="cycle_coverage">%1$d / %2$d so far</string>
+    <plurals name="cycle_coverage_all">
+        <item quantity="one">%1$d episode, all available</item>
+        <item quantity="other">all %1$d available</item>
+    </plurals>
     <string name="plan_skip_to_today">Skip to today</string>
     <string name="plan_restart">Restart plan</string>
     <string name="plan_restart_title">Restart %1$s?</string>

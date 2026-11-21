@@ -106,6 +106,8 @@ dependencies {
     implementation(libs.androidx.documentfile)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.guava)
+    implementation(platform(libs.okhttp.bom))
+    implementation(libs.okhttp)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlin.test)
@@ -115,6 +117,9 @@ dependencies {
     testImplementation(libs.androidx.junit)
     testImplementation(libs.androidx.room.testing)
     testImplementation(libs.androidx.work.testing)
+    testImplementation(platform(libs.okhttp.bom))
+    testImplementation(libs.okhttp.mockwebserver)
+    testImplementation(testFixtures(project(":core:podcast")))
     testImplementation(project(":core:importer"))
     testImplementation(testFixtures(project(":core:importer")))
 

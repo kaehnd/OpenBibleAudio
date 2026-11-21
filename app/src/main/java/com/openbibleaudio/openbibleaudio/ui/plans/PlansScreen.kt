@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -49,6 +50,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.openbibleaudio.core.model.plan.CycleKey
 import com.openbibleaudio.core.model.plan.Reading
 import com.openbibleaudio.openbibleaudio.R
 import com.openbibleaudio.openbibleaudio.playback.BookTitles
@@ -116,8 +118,8 @@ fun PlansScreen(
             text = { LinearProgressIndicator(Modifier.fillMaxWidth()) },
         )
         is PlansDialog.ImportProblem -> ImportProblemDialog(d.result, viewModel::dismissDialog)
-        is PlansDialog.Enroll -> EnrollDialog(d, ui?.versions.orEmpty(), viewModel::dismissDialog) { versionId, start ->
-            viewModel.enroll(d.plan, versionId, start)
+        is PlansDialog.Enroll -> EnrollDialog(d, ui?.versions.orEmpty(), viewModel::dismissDialog) { versionId, start, cycle ->
+            viewModel.enroll(d.plan, versionId, start, cycle)
         }
     }
 }
@@ -196,9 +198,18 @@ private fun EnrollDialog(
     dialog: PlansDialog.Enroll,
     versions: List<VersionInfo>,
     onDismiss: () -> Unit,
-    onEnroll: (versionId: String?, startDate: LocalDate) -> Unit,
+    onEnroll: (versionId: String?, startDate: LocalDate, podcastCycle: Int?) -> Unit,
 ) {
     var versionId by rememberSaveable { mutableStateOf<String?>(null) }
+    // The listener's cycle choice; until they pick one, the plan's default applies.
+    var pickedCycle by rememberSaveable { mutableStateOf<Int?>(null) }
+    var cyclePicked by rememberSaveable { mutableStateOf(false) }
+    val ready = dialog.podcast as? EnrollPodcast.Ready
+    val cycle = when {
+        ready?.cycleKind == null -> null
+        cyclePicked -> pickedCycle
+        else -> ready.defaultKey
+    }
     var startEpochDay by rememberSaveable { mutableStateOf(LocalDate.now().toEpochDay()) }
     var picking by rememberSaveable { mutableStateOf(false) }
     val start = LocalDate.ofEpochDay(startEpochDay)
@@ -219,9 +230,21 @@ private fun EnrollDialog(
                     Text(stringResource(R.string.enroll_start, start.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))))
                 }
                 Text(stringResource(R.string.enroll_start_note), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
+                dialog.podcast?.let { podcast ->
+                    EnrollPodcastSection(podcast, cycle) { key ->
+                        pickedCycle = key
+                        cyclePicked = true
+                    }
+                }
             }
         },
-        confirmButton = { TextButton(onClick = { onEnroll(versionId, start) }) { Text(stringResource(R.string.enroll_confirm)) } },
+        confirmButton = {
+            TextButton(
+                onClick = { onEnroll(versionId, start, cycle) },
+                // Wait for the feed check so the default cycle is known (it fails fast offline).
+                enabled = dialog.podcast !is EnrollPodcast.Loading,
+            ) { Text(stringResource(R.string.enroll_confirm)) }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 
@@ -240,6 +263,60 @@ private fun EnrollDialog(
         ) { DatePicker(state) }
     }
 }
+
+/** The podcast part of the enroll dialog: which cycle's episodes to follow (spec 0003 §7.2). */
+@Composable
+private fun EnrollPodcastSection(podcast: EnrollPodcast, selected: Int?, onSelect: (Int?) -> Unit) {
+    Text(stringResource(R.string.enroll_podcast), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp))
+    when (podcast) {
+        EnrollPodcast.Loading -> Row(Modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            CircularProgressIndicator(Modifier.padding(end = 12.dp).size(20.dp), strokeWidth = 2.dp)
+            Text(stringResource(R.string.enroll_podcast_checking), style = MaterialTheme.typography.bodySmall)
+        }
+        is EnrollPodcast.Failed -> Text(
+            stringResource(R.string.enroll_podcast_failed, podcast.message),
+            style = MaterialTheme.typography.bodySmall,
+        )
+        is EnrollPodcast.Ready -> {
+            podcast.refreshError?.let {
+                Text(stringResource(R.string.enroll_podcast_stale, it), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 4.dp))
+            }
+            val kind = podcast.cycleKind
+            when {
+                podcast.cycles.isEmpty() -> Text(stringResource(R.string.enroll_podcast_none), style = MaterialTheme.typography.bodySmall)
+                kind == null -> Text(coverageText(podcast.cycles.first()), style = MaterialTheme.typography.bodySmall)
+                else -> {
+                    podcast.cycles.forEach { c ->
+                        VersionOption("${cycleLabel(kind, c)} — ${coverageText(c)}", selected == c.key) { onSelect(c.key) }
+                    }
+                    podcast.cycles.firstOrNull { it.key == selected }?.takeIf { !it.complete }?.let { c ->
+                        Text(
+                            pluralStringResource(R.plurals.enroll_podcast_partial, c.matched, c.matched, c.dayCount, cycleLabel(kind, c)),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** "Season 7 · 2025" (itunes:season), "Cycle 7 · 2025" (title regex) or "2025" (publication year). */
+@Composable
+private fun cycleLabel(kind: CycleKey, c: CycleOption): String {
+    val key = c.key ?: 0
+    return when (kind) {
+        CycleKey.PUB_DATE_YEAR -> key.toString()
+        CycleKey.ITUNES_SEASON ->
+            if (c.year != null) stringResource(R.string.cycle_season_year, key, c.year) else stringResource(R.string.cycle_season, key)
+        CycleKey.TITLE_REGEX ->
+            if (c.year != null) stringResource(R.string.cycle_generic_year, key, c.year) else stringResource(R.string.cycle_generic, key)
+    }
+}
+
+@Composable
+private fun coverageText(c: CycleOption): String =
+    if (c.complete) pluralStringResource(R.plurals.cycle_coverage_all, c.dayCount, c.dayCount) else stringResource(R.string.cycle_coverage, c.matched, c.dayCount)
 
 @Composable
 private fun VersionOption(label: String, selected: Boolean, onSelect: () -> Unit) {

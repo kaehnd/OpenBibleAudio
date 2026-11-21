@@ -110,6 +110,13 @@ class PlanRepository(
 
     suspend fun plan(id: String, version: Int): PlanDefinition? = dao.plan(id, version)?.let(::decode)
 
+    /** Plans of ACTIVE enrollments that have a podcast, one per feed URL (spec 0003 §7.1). */
+    suspend fun activePodcastPlans(): List<PlanDefinition> =
+        dao.activeEnrollments()
+            .mapNotNull { plan(it.planId, it.planVersion) }
+            .filter { it.podcast != null }
+            .distinctBy { it.podcast!!.feedUrl }
+
     private fun decode(row: PlanEntity): PlanDefinition =
         decoded.getOrPut(row.id to row.version) { PlanCodec.decode(row.definitionJson) }
 

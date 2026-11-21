@@ -2,7 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- AD-14: only what's needed. No INTERNET (Phase 3) and no storage permissions: SAF only. -->
+    <!-- AD-14: only what's needed. INTERNET is for plan-linked podcast feeds and episodes only
+         (spec 0003 §11). No storage permissions: SAF only. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
