@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Themed-icon layer (Android 13+): the foreground's shapes in one colour; the system tints it. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Scaled so the cover corners stay inside a circular mask. -->
+    <group android:scaleX="0.88" android:scaleY="0.88" android:pivotX="54" android:pivotY="54">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M52.8,50.5 C46.5,46.6 39,45.6 31,46.6 L31,73.4 C39,72.5 46.5,73.6 52.8,77.4 Z M55.2,50.5 C61.5,46.6 69,45.6 77,46.6 L77,73.4 C69,72.5 61.5,73.6 55.2,77.4 Z M29,74.6 C38,73.6 46.5,74.8 54,79 C61.5,74.8 70,73.6 79,74.6 L79,77.2 C70,76.3 61.5,77.6 54,81.6 C46.5,77.6 38,76.3 29,77.2 Z" />
+        <path
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="3"
+            android:strokeLineCap="round"
+            android:pathData="M48.7,40.5 A7.5,7.5 0 0 1 59.3,40.5 M43.4,35.2 A15,15 0 0 1 64.6,35.2 M38.1,29.9 A22.5,22.5 0 0 1 69.9,29.9" />
+    </group>
+</vector>

@@ -1,30 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launcher icon foreground: an open book with sound waves rising from its spine.
+     Everything sits inside the 66dp adaptive-icon safe zone (21..87). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path android:pathData="M31,63.928c0,0 6.4,-11 12.1,-13.1c7.2,-2.6 26,-1.4 26,-1.4l38.1,38.1L107,108.928l-32,-1L31,63.928z">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:endX="85.84757"
-                android:endY="92.4963"
-                android:startX="42.9492"
-                android:startY="49.59793"
-                android:type="linear">
-                <item
-                    android:color="#44000000"
-                    android:offset="0.0" />
-                <item
-                    android:color="#00000000"
-                    android:offset="1.0" />
-            </gradient>
-        </aapt:attr>
-    </path>
-    <path
-        android:fillColor="#FFFFFF"
-        android:fillType="nonZero"
-        android:pathData="M65.3,45.828l3.8,-6.6c0.2,-0.4 0.1,-0.9 -0.3,-1.1c-0.4,-0.2 -0.9,-0.1 -1.1,0.3l-3.9,6.7c-6.3,-2.8 -13.4,-2.8 -19.7,0l-3.9,-6.7c-0.2,-0.4 -0.7,-0.5 -1.1,-0.3C38.8,38.328 38.7,38.828 38.9,39.228l3.8,6.6C36.2,49.428 31.7,56.028 31,63.928h46C76.3,56.028 71.8,49.428 65.3,45.828zM43.4,57.328c-0.8,0 -1.5,-0.5 -1.8,-1.2c-0.3,-0.7 -0.1,-1.5 0.4,-2.1c0.5,-0.5 1.4,-0.7 2.1,-0.4c0.7,0.3 1.2,1 1.2,1.8C45.3,56.528 44.5,57.328 43.4,57.328L43.4,57.328zM64.6,57.328c-0.8,0 -1.5,-0.5 -1.8,-1.2s-0.1,-1.5 0.4,-2.1c0.5,-0.5 1.4,-0.7 2.1,-0.4c0.7,0.3 1.2,1 1.2,1.8C66.5,56.528 65.6,57.328 64.6,57.328L64.6,57.328z"
-        android:strokeWidth="1"
-        android:strokeColor="#00000000" />
+    <!-- Pages -->
+    <!-- Scaled so the cover corners stay inside a circular mask. -->
+    <group android:scaleX="0.88" android:scaleY="0.88" android:pivotX="54" android:pivotY="54">
+        <path
+            android:fillColor="#F6EAD2"
+            android:pathData="M52.8,50.5 C46.5,46.6 39,45.6 31,46.6 L31,73.4 C39,72.5 46.5,73.6 52.8,77.4 Z" />
+        <path
+            android:fillColor="#F6EAD2"
+            android:pathData="M55.2,50.5 C61.5,46.6 69,45.6 77,46.6 L77,73.4 C69,72.5 61.5,73.6 55.2,77.4 Z" />
+        <!-- Cover edge below the pages -->
+        <path
+            android:fillColor="#E0B04A"
+            android:pathData="M29,74.6 C38,73.6 46.5,74.8 54,79 C61.5,74.8 70,73.6 79,74.6 L79,77.2 C70,76.3 61.5,77.6 54,81.6 C46.5,77.6 38,76.3 29,77.2 Z" />
+        <!-- Text lines -->
+        <path
+            android:strokeColor="#C9B38A"
+            android:strokeWidth="1.4"
+            android:strokeLineCap="round"
+            android:pathData="M35,54.2 C40,53.6 44.6,54.1 48.8,55.6 M35,59.6 C40,59 44.6,59.5 48.8,61 M35,65 C40,64.4 44.6,64.9 48.8,66.4 M73,54.2 C68,53.6 63.4,54.1 59.2,55.6 M73,59.6 C68,59 63.4,59.5 59.2,61 M73,65 C68,64.4 63.4,64.9 59.2,66.4" />
+        <!-- Sound waves -->
+        <path
+            android:strokeColor="#E0B04A"
+            android:strokeWidth="3"
+            android:strokeLineCap="round"
+            android:pathData="M48.7,40.5 A7.5,7.5 0 0 1 59.3,40.5" />
+        <path
+            android:strokeColor="#E0B04A"
+            android:strokeWidth="3"
+            android:strokeLineCap="round"
+            android:pathData="M43.4,35.2 A15,15 0 0 1 64.6,35.2" />
+        <path
+            android:strokeColor="#E0B04A"
+            android:strokeWidth="3"
+            android:strokeLineCap="round"
+            android:pathData="M38.1,29.9 A22.5,22.5 0 0 1 69.9,29.9" />
+    </group>
 </vector>
