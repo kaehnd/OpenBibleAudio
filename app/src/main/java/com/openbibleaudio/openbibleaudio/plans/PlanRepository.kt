@@ -175,9 +175,11 @@ class PlanRepository(
     /**
      * Records that [itemKey] of [queue] finished (spec 0002 completion rule) and updates the day's
      * status from the queue as it was built, so a dropped chapter or an unavailable episode
-     * doesn't block the day (spec 0003 §6.3). Returns the day's new status.
+     * doesn't block the day (spec 0003 §6.3). Returns the day's new status, or null when the
+     * enrollment has been deleted meanwhile (its day was still playing): nothing is recorded.
      */
-    suspend fun recordItemCompleted(queue: DayQueue, itemKey: String): DayStatus {
+    suspend fun recordItemCompleted(queue: DayQueue, itemKey: String): DayStatus? {
+        if (dao.enrollment(queue.enrollmentId) == null) return null
         val now = clock.millis()
         dao.insertCompletion(EnrollmentItemCompletionEntity(queue.enrollmentId, queue.day, itemKey, now))
         val completed = dao.completedItems(queue.enrollmentId, queue.day).toSet()

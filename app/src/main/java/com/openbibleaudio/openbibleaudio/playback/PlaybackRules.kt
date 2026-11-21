@@ -52,6 +52,24 @@ class CompletionTracker {
     }
 }
 
+/**
+ * Which controllers may control playback (spec 0002 §7.7). Media3 gives untrusted controllers
+ * read-only access, and "trusted" needs the controller's package to be visible to this app. Gemini
+ * (the Google app) calling `playFromSearch` on the active session in Android Auto isn't visible
+ * unless it happened to bind to the service first, so its request was silently dropped. The
+ * assistant and Auto packages get full access whatever the trust check says.
+ */
+object ControllerAccess {
+    val ASSISTANT_AND_CAR_PACKAGES = setOf(
+        "com.google.android.googlequicksearchbox", // Google app: Assistant / Gemini
+        "com.google.android.apps.bard", // Gemini app
+        "com.google.android.projection.gearhead", // Android Auto
+        "com.google.android.carassistant", // Assistant on Android Automotive
+    )
+
+    fun fullAccess(packageName: String, trusted: Boolean): Boolean = trusted || packageName in ASSISTANT_AND_CAR_PACKAGES
+}
+
 /** What a voice query asks for (spec 0002 §7.7). */
 sealed interface VoiceRequest {
     data class Play(val chapter: MediaId.Chapter) : VoiceRequest

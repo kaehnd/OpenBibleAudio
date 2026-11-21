@@ -27,6 +27,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -102,14 +103,26 @@ class VoiceSearchPlaybackTest {
     private fun describe(c: MediaController) =
         "state=${c.playbackState?.state} error=${c.playbackState?.errorMessage} title=${c.metadata?.description?.title} queue=${c.queue?.map { it.description.mediaId }}"
 
-    /** Calls playFromSearch and waits for PLAYING, as the assistant does (it gives up after ~10 s). */
+    /**
+     * Calls playFromSearch and waits for PLAYING, as the assistant does (it gives up after ~10 s).
+     * States are recorded by a callback, not polled: the mini pack's clips are so short that a day
+     * can play to the end between two polls.
+     */
     private suspend fun playFromSearch(query: String): MediaController = withContext(Dispatchers.Main) {
         val c = controller!!
-        c.transportControls.playFromSearch(query, Bundle())
-        val deadline = System.currentTimeMillis() + 10_000
-        while (c.playbackState?.state != PlaybackState.STATE_PLAYING) {
-            if (System.currentTimeMillis() > deadline) throw AssertionError("\"$query\" didn't start playing within 10 s; saw ${describe(c)}")
-            delay(100)
+        val playing = CompletableDeferred<Unit>()
+        val callback = object : MediaController.Callback() {
+            override fun onPlaybackStateChanged(state: PlaybackState?) {
+                if (state?.state == PlaybackState.STATE_PLAYING) playing.complete(Unit)
+            }
+        }
+        c.registerCallback(callback)
+        try {
+            c.transportControls.playFromSearch(query, Bundle())
+            withTimeoutOrNull(10_000) { playing.await() }
+                ?: throw AssertionError("\"$query\" didn't start playing within 10 s; saw ${describe(c)}")
+        } finally {
+            c.unregisterCallback(callback)
         }
         c
     }

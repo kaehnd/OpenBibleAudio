@@ -2,6 +2,7 @@ package com.openbibleaudio.openbibleaudio.playback
 
 import android.app.PendingIntent
 import android.content.Intent
+import android.database.sqlite.SQLiteException
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Bundle
@@ -427,10 +428,14 @@ class PlaybackService : MediaLibraryService() {
     // --- Session callback ------------------------------------------------------------------
 
     private inner class LibraryCallback : MediaLibrarySession.Callback {
-        override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult {
-            val result = super.onConnect(session, controller)
-            Log.i(TAG, "Connect from ${controller.packageName} (legacy=${controller.controllerVersion == MediaSession.ControllerInfo.LEGACY_CONTROLLER_VERSION}, trusted=${controller.isTrusted}): accepted=${result.isAccepted}")
-            return result
+        override fun onConnectAsync(session: MediaSession, controller: MediaSession.ControllerInfo): ListenableFuture<MediaSession.ConnectionResult> {
+            val full = ControllerAccess.fullAccess(controller.packageName, controller.isTrusted)
+            // AcceptedResultBuilder(session) is full access; (session, controller) is Media3's trust-based default.
+            val builder = if (full) MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+            else MediaSession.ConnectionResult.AcceptedResultBuilder(session, controller)
+            Log.i(TAG, "Connect from ${controller.packageName} (legacy=${controller.controllerVersion == MediaSession.ControllerInfo.LEGACY_CONTROLLER_VERSION}, trusted=${controller.isTrusted}): ${if (full) "full" else "read-only"} access")
+            // Must not wait on the main thread: legacy controllers block it while connecting.
+            return Futures.immediateFuture(builder.build())
         }
 
         private fun rootParams() = LibraryParams.Builder().setExtras(
@@ -672,22 +677,31 @@ class PlaybackService : MediaLibraryService() {
             return
         }
         scope.launch {
-            when (entry) {
-                is QueueEntry.Chapter -> completions.insert(
-                    ChapterCompletionEntity(versionId = built.versionId, book = entry.ref.book, chapter = entry.ref.chapter, completedAt = System.currentTimeMillis()),
-                )
-                // Played: the next start is from the beginning (spec 0003 §8.5).
-                is QueueEntry.Episode -> {
-                    podcastDao.markPlayed(entry.feedId, entry.guidHash, System.currentTimeMillis())
-                    episodeStarts[id.format()] = 0
-                }
+            try {
+                recordPlanEntry(id, built, entry)
+            } catch (e: SQLiteException) {
+                // E.g. the enrollment was deleted while its day played: never crash playback over it.
+                Log.w(TAG, "Couldn't record ${id.format()}", e)
             }
-            val status = planRepository.recordItemCompleted(built.queue, entry.itemKey)
-            if (status == DayStatus.COMPLETE && summaryHasPodcast(id.enrollmentId)) {
-                // The rolling window moves on, and finished episodes may now be deletable (spec 0003 §8.1, §8.4).
-                episodeDownloads.applyRetention()
-                episodeDownloads.start(id.enrollmentId)
+        }
+    }
+
+    private suspend fun recordPlanEntry(id: MediaId.PlanItem, built: BuiltDay, entry: QueueEntry) {
+        when (entry) {
+            is QueueEntry.Chapter -> completions.insert(
+                ChapterCompletionEntity(versionId = built.versionId, book = entry.ref.book, chapter = entry.ref.chapter, completedAt = System.currentTimeMillis()),
+            )
+            // Played: the next start is from the beginning (spec 0003 §8.5).
+            is QueueEntry.Episode -> {
+                podcastDao.markPlayed(entry.feedId, entry.guidHash, System.currentTimeMillis())
+                episodeStarts[id.format()] = 0
             }
+        }
+        val status = planRepository.recordItemCompleted(built.queue, entry.itemKey)
+        if (status == DayStatus.COMPLETE && summaryHasPodcast(id.enrollmentId)) {
+            // The rolling window moves on, and finished episodes may now be deletable (spec 0003 §8.1, §8.4).
+            episodeDownloads.applyRetention()
+            episodeDownloads.start(id.enrollmentId)
         }
     }
 

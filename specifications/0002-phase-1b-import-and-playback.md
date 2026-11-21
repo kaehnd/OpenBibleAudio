@@ -350,6 +350,12 @@ root
   - Can't parse, or the chapter isn't in the pack → error result with the message *"Couldn't find
     'Hezekiah 3' in BSB"*, which Auto reads out.
 - `onGetSearchResult` returns up to 10 matches: the parsed chapter, plus the book's first chapter when only a book was given.
+- **Who may send it.** Media3 gives untrusted controllers read-only access, so their
+  `playFromSearch` is dropped silently, and "trusted" needs the caller's package to be visible to
+  the app. Gemini in Android Auto calls `playFromSearch` straight on the active session, often
+  without binding to the service first, and is then invisible and untrusted. `onConnectAsync`
+  therefore gives full access to trusted controllers and to `ControllerAccess.ASSISTANT_AND_CAR_PACKAGES`
+  (Google app, Gemini, Android Auto, Assistant on Automotive). Everyone else gets Media3's default.
 
 ### 7.8 Completion recording (AD-2)
 A player listener inserts a `chapter_completion` row when a chapter's item stops being current

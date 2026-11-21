@@ -175,6 +175,15 @@ Write output to a scratch/temp directory, not inside the repo.
 - Don't remove `testOptions.unitTests.isIncludeAndroidResources = true` from `app/build.gradle.kts`.
   Without it, AGP's Compose Preview tasks fail configuration, which breaks `check`, `lint` and `tasks`.
 - The Android CLI copies an `init.gradle.kts` into `.gradle/` (gitignored). That's expected.
+- **Reinstalling while Android Auto is running hides the app in Auto.** `adb install -r` (or Run
+  from Android Studio) briefly removes the package. Android Auto's long-lived `:projection` process
+  drops the app then and doesn't add it back, so the car or DHU shows only the media controls ("open
+  it on your phone") until Auto restarts. After installing a new build, run
+  `adb shell am force-stop com.google.android.projection.gearhead`. For the DHU, then start the head
+  unit server again.
+- **DHU sessions:** start the DHU only once per head unit server start. A second connection to the
+  same server crashes Auto's DHU service ("Already connected"); force-stop Auto and restart the
+  server. Voice in Auto goes through Gemini, which passes the app's name inside the query (spec 0002 §7.7).
 
 ## Conventions
 

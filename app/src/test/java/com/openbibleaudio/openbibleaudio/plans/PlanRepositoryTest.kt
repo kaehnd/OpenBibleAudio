@@ -135,6 +135,16 @@ class PlanRepositoryTest {
         assertEquals(3, repo.nextDayAfter(e, 2))
     }
 
+    /** Deleting a plan while its day plays used to crash on a foreign key (found by VoiceSearchPlaybackTest). */
+    @Test
+    fun completingAnItemOfADeletedEnrollmentRecordsNothing() = runBlocking<Unit> {
+        val e = enrollSmall()
+        val q = queue(e, 1)
+        repo.unenroll(e)
+        assertNull(repo.recordItemCompleted(q, "ch/GEN/1"))
+        assertNull(repo.summary(e))
+    }
+
     @Test
     fun episodeBlocksCompletionOnlyWhenItWasInTheQueue() = runBlocking<Unit> {
         val e = enrollSmall()

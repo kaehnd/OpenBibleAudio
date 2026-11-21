@@ -11,6 +11,7 @@ import com.openbibleaudio.openbibleaudio.plans.PlanPosition
 import org.junit.Test
 import java.util.TreeSet
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -199,6 +200,21 @@ class PlaybackRulesTest {
         val t = CompletionTracker()
         t.begin(null, 0)
         assertNull(t.end(naturalEnd = true))
+    }
+}
+
+class ControllerAccessTest {
+    /** In the car, Gemini's package wasn't visible, so Media3 saw it as untrusted (2026-11-21). */
+    @Test
+    fun assistantAndAutoGetFullAccessEvenWhenUntrusted() {
+        assertTrue(ControllerAccess.fullAccess("com.google.android.googlequicksearchbox", trusted = false))
+        assertTrue(ControllerAccess.fullAccess("com.google.android.projection.gearhead", trusted = false))
+    }
+
+    @Test
+    fun othersFollowTheTrustCheck() {
+        assertTrue(ControllerAccess.fullAccess("com.example.player", trusted = true))
+        assertFalse(ControllerAccess.fullAccess("com.example.player", trusted = false))
     }
 }
 
