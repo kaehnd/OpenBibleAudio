@@ -122,6 +122,10 @@ class PlanRepository(
 
     // --- Enrollment --------------------------------------------------------------------------
 
+    /**
+     * [startDay] > 1 joins a plan part-way: days before it are marked complete (spec 0003 §6.1).
+     * Pair it with `PlanProgress.startDateFor(startDay, today)` to be on schedule.
+     */
     suspend fun enroll(
         planId: String,
         planVersion: Int,
@@ -130,15 +134,22 @@ class PlanRepository(
         podcastCycle: Int? = null,
         downloadMode: DownloadMode = DownloadMode.ROLLING,
         rollingDays: Int = EnrollmentEntity.DEFAULT_ROLLING_DAYS,
+        startDay: Int = 1,
     ): Long {
-        requireNotNull(dao.plan(planId, planVersion)) { "plan $planId v$planVersion isn't imported" }
-        return dao.insertEnrollment(
+        val plan = requireNotNull(plan(planId, planVersion)) { "plan $planId v$planVersion isn't imported" }
+        require(startDay in 1..plan.dayCount) { "start day $startDay isn't in 1..${plan.dayCount}" }
+        val id = dao.insertEnrollment(
             EnrollmentEntity(
                 planId = planId, planVersion = planVersion, versionId = versionId, startDate = startDate.toString(),
                 podcastCycle = podcastCycle, downloadMode = downloadMode, rollingDays = rollingDays.coerceAtLeast(1),
                 state = EnrollmentState.ACTIVE, createdAt = clock.millis(),
             )
         )
+        if (startDay > 1) {
+            val now = clock.millis()
+            dao.upsertDays((1 until startDay).map { EnrollmentDayEntity(id, it, DayStatus.COMPLETE, now) })
+        }
+        return id
     }
 
     /** Deletes the enrollment and its progress, and the plan version if nothing else uses it. */
@@ -215,6 +226,33 @@ class PlanRepository(
     }
 
     suspend fun restart(enrollmentId: Long) = dao.restart(enrollmentId)
+
+    /**
+     * Moves the start date so the current day is today's calendar day: neither behind nor ahead
+     * (spec 0003 §6.3). Progress is unchanged. False when the plan is finished or gone.
+     */
+    suspend fun matchSchedule(enrollmentId: Long): Boolean {
+        val s = summary(enrollmentId) ?: return false
+        val day = s.position.currentDay ?: return false
+        dao.setStartDate(enrollmentId, PlanProgress.startDateFor(day, LocalDate.now(clock)).toString())
+        return true
+    }
+
+    /**
+     * "Start from day N" (spec 0003 §6.3): open days before [day] become complete, day [day] and
+     * later go back to not done, and [day] becomes today's calendar day.
+     */
+    suspend fun startFromDay(enrollmentId: Long, day: Int) {
+        val s = summary(enrollmentId) ?: return
+        require(day in 1..s.plan.dayCount) { "day $day isn't in 1..${s.plan.dayCount}" }
+        dao.startFrom(
+            enrollmentId, day,
+            completeDays = PlanProgress.daysCompletedByStartingAt(day, s.statuses),
+            completedAt = clock.millis(),
+            startDate = PlanProgress.startDateFor(day, LocalDate.now(clock)).toString(),
+        )
+        updateFinished(enrollmentId)
+    }
 
     /** The next open day after [day], for "continue to next day" and "Play Day N next" (§6.2). */
     suspend fun nextDayAfter(enrollmentId: Long, day: Int): Int? {

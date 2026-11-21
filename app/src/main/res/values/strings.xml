@@ -245,6 +245,17 @@
         <item quantity="other">all %1$d available</item>
     </plurals>
     <string name="plan_skip_to_today">Skip to today</string>
+    <string name="plan_match_schedule">Match schedule to my progress</string>
+    <string name="plan_start_from">Start from day…</string>
+    <string name="plan_start_from_title">Start from which day?</string>
+    <string name="plan_start_from_body">Days before it are marked done. That day and the ones after it are marked not done, and it becomes today\'s day.</string>
+    <string name="plan_start_from_confirm">Start from day %1$d</string>
+    <string name="plan_start_day">Start at day</string>
+    <string name="plan_start_day_range">Enter a day from 1 to %1$d</string>
+    <plurals name="plan_start_day_note">
+        <item quantity="one">Day 1 is marked done</item>
+        <item quantity="other">Days 1–%1$d are marked done</item>
+    </plurals>
     <string name="plan_restart">Restart plan</string>
     <string name="plan_restart_title">Restart %1$s?</string>
     <string name="plan_restart_body">Every day goes back to not done.</string>

@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.text.format.Formatter
 import androidx.compose.ui.platform.LocalContext
+import com.openbibleaudio.openbibleaudio.plans.PlanProgress
 import com.openbibleaudio.core.model.plan.CycleKey
 import com.openbibleaudio.openbibleaudio.data.db.DownloadMode
 import com.openbibleaudio.openbibleaudio.data.db.EnrollmentEntity
@@ -124,8 +125,8 @@ fun PlansScreen(
             text = { LinearProgressIndicator(Modifier.fillMaxWidth()) },
         )
         is PlansDialog.ImportProblem -> ImportProblemDialog(d.result, viewModel::dismissDialog)
-        is PlansDialog.Enroll -> EnrollDialog(d, ui?.versions.orEmpty(), viewModel::dismissDialog) { versionId, start, cycle, mode ->
-            viewModel.enroll(d.plan, versionId, start, cycle, mode)
+        is PlansDialog.Enroll -> EnrollDialog(d, ui?.versions.orEmpty(), viewModel::dismissDialog) { versionId, start, cycle, mode, startDay ->
+            viewModel.enroll(d.plan, versionId, start, cycle, mode, startDay)
         }
     }
 }
@@ -207,7 +208,7 @@ private fun EnrollDialog(
     dialog: PlansDialog.Enroll,
     versions: List<VersionInfo>,
     onDismiss: () -> Unit,
-    onEnroll: (versionId: String?, startDate: LocalDate, podcastCycle: Int?, downloadMode: DownloadMode) -> Unit,
+    onEnroll: (versionId: String?, startDate: LocalDate, podcastCycle: Int?, downloadMode: DownloadMode, startDay: Int) -> Unit,
 ) {
     var versionId by rememberSaveable { mutableStateOf<String?>(null) }
     // The listener's cycle choice; until they pick one, the plan's default applies.
@@ -228,6 +229,9 @@ private fun EnrollDialog(
     var startEpochDay by rememberSaveable { mutableStateOf(LocalDate.now().toEpochDay()) }
     var picking by rememberSaveable { mutableStateOf(false) }
     val start = LocalDate.ofEpochDay(startEpochDay)
+    // Joining part-way (spec 0003 §6.1): days before it count as done, and it becomes today's day.
+    var startDayText by rememberSaveable { mutableStateOf("1") }
+    val startDay = startDayText.toIntOrNull()?.takeIf { it in 1..dialog.dayCount }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -245,6 +249,12 @@ private fun EnrollDialog(
                     Text(stringResource(R.string.enroll_start, start.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))))
                 }
                 Text(stringResource(R.string.enroll_start_note), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
+                StartDayField(startDayText, startDay, dialog.dayCount, modifier = Modifier.padding(top = 8.dp)) { text ->
+                    startDayText = text
+                    text.toIntOrNull()?.takeIf { it in 1..dialog.dayCount }?.let {
+                        startEpochDay = PlanProgress.startDateFor(it, LocalDate.now()).toEpochDay()
+                    }
+                }
                 dialog.podcast?.let { podcast ->
                     EnrollPodcastSection(podcast, cycle) { key ->
                         pickedCycle = key
@@ -259,9 +269,9 @@ private fun EnrollDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { onEnroll(versionId, start, cycle, mode) },
+                onClick = { onEnroll(versionId, start, cycle, mode, startDay ?: 1) },
                 // Wait for the feed check so the default cycle is known (it fails fast offline).
-                enabled = dialog.podcast !is EnrollPodcast.Loading,
+                enabled = dialog.podcast !is EnrollPodcast.Loading && startDay != null,
             ) { Text(stringResource(R.string.enroll_confirm)) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },

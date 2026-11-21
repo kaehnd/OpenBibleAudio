@@ -91,6 +91,27 @@ interface PlanDao {
         setEnrollmentState(enrollmentId, EnrollmentState.ACTIVE)
     }
 
+    @Query("UPDATE enrollment SET startDate = :startDate WHERE id = :id")
+    suspend fun setStartDate(id: Long, startDate: String)
+
+    @Query("DELETE FROM enrollment_day WHERE enrollmentId = :enrollmentId AND day >= :fromDay")
+    suspend fun clearDaysFrom(enrollmentId: Long, fromDay: Int)
+
+    @Query("DELETE FROM enrollment_item_completion WHERE enrollmentId = :enrollmentId AND day >= :fromDay")
+    suspend fun clearCompletionsFrom(enrollmentId: Long, fromDay: Int)
+
+    /**
+     * "Start from day N" (spec 0003 §6.3): [completeDays] (open days before N) become COMPLETE,
+     * day N and later go back to not done, and the start date makes N today's day.
+     */
+    @Transaction
+    suspend fun startFrom(enrollmentId: Long, fromDay: Int, completeDays: List<Int>, completedAt: Long, startDate: String) {
+        clearCompletionsFrom(enrollmentId, fromDay)
+        clearDaysFrom(enrollmentId, fromDay)
+        upsertDays(completeDays.map { EnrollmentDayEntity(enrollmentId, it, DayStatus.COMPLETE, completedAt) })
+        setStartDate(enrollmentId, startDate)
+    }
+
     @Query("SELECT * FROM enrollment_day WHERE enrollmentId = :enrollmentId AND day = :day")
     suspend fun day(enrollmentId: Long, day: Int): EnrollmentDayEntity?
 

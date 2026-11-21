@@ -95,6 +95,32 @@ class PlanProgressTest {
     }
 
     @Test
+    fun aStartDateForADayPutsItOnSchedule() {
+        // 176 days done, 177 is current, and the calendar has only reached day 1: 175 days ahead.
+        val statuses = (1..176).associateWith { DayStatus.COMPLETE }
+        assertEquals(175, pos(statuses).ahead)
+        val moved = PlanProgress.startDateFor(177, start)
+        val p = PlanProgress.position(365, statuses, moved, start)
+        assertEquals(177, p.calendarDay)
+        assertEquals(0, p.ahead)
+        assertEquals(0, p.behind)
+        assertFalse(p.upNext)
+        assertEquals(start, PlanProgress.startDateFor(1, start))
+
+        // Behind: nothing done and the calendar is on day 6. Matching moves day 1 to today.
+        val later = start.plusDays(5)
+        assertEquals(5, pos(emptyMap(), today = later).behind)
+        assertEquals(0, PlanProgress.position(365, emptyMap(), PlanProgress.startDateFor(1, later), later).behind)
+    }
+
+    @Test
+    fun startingAtADayCompletesOnlyTheOpenDaysBeforeIt() {
+        val statuses = done(1) + (2 to DayStatus.SKIPPED) + (3 to DayStatus.IN_PROGRESS) + done(6)
+        assertEquals(listOf(3, 4), PlanProgress.daysCompletedByStartingAt(5, statuses))
+        assertEquals(emptyList(), PlanProgress.daysCompletedByStartingAt(1, statuses))
+    }
+
+    @Test
     fun dayStatusFromItems() {
         val readings = listOf("ch/GEN/1", "ch/GEN/2")
         val ep = "ep/0123456789abcdef"

@@ -74,6 +74,7 @@ fun EnrollmentScreen(
     var confirm by rememberSaveable { mutableStateOf<Confirm?>(null) }
     var choosingMode by rememberSaveable { mutableStateOf(false) }
     var pinningDay by rememberSaveable { mutableStateOf<Int?>(null) }
+    var choosingStartDay by rememberSaveable { mutableStateOf(false) }
     val e = viewModel.enrollmentId
 
     val state = ui
@@ -100,8 +101,11 @@ fun EnrollmentScreen(
                     HeaderMenu(
                         paused = card.paused,
                         finished = card.finished,
+                        offSchedule = card.badge != null,
                         hasPodcast = state.podcast != null,
                         onDownloadMode = { choosingMode = true },
+                        onMatchSchedule = viewModel::matchSchedule,
+                        onStartFrom = { choosingStartDay = true },
                         onSkip = viewModel::skipToToday,
                         onPause = { viewModel.setPaused(!card.paused) },
                         onRestart = { confirm = Confirm.RESTART },
@@ -159,6 +163,12 @@ fun EnrollmentScreen(
         }
     }
 
+    if (choosingStartDay) {
+        StartFromDayDialog(card.currentDay ?: 1, state.days.size, onDismiss = { choosingStartDay = false }) {
+            viewModel.startFromDay(it)
+        }
+    }
+
     when (confirm) {
         null -> Unit
         Confirm.RESTART -> ConfirmDialog(
@@ -180,8 +190,11 @@ fun EnrollmentScreen(
 private fun HeaderMenu(
     paused: Boolean,
     finished: Boolean,
+    offSchedule: Boolean,
     hasPodcast: Boolean,
     onDownloadMode: () -> Unit,
+    onMatchSchedule: () -> Unit,
+    onStartFrom: () -> Unit,
     onSkip: () -> Unit,
     onPause: () -> Unit,
     onRestart: () -> Unit,
@@ -194,10 +207,13 @@ private fun HeaderMenu(
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             val items = buildList {
                 if (!finished) {
+                    // Behind or ahead: make the current day today's day (spec 0003 §6.3).
+                    if (offSchedule) add(R.string.plan_match_schedule to onMatchSchedule)
                     add(R.string.plan_skip_to_today to onSkip)
                     add((if (paused) R.string.plan_resume else R.string.plan_pause) to onPause)
                 }
                 if (hasPodcast) add(R.string.plan_download_mode to onDownloadMode)
+                add(R.string.plan_start_from to onStartFrom)
                 add(R.string.plan_restart to onRestart)
                 add(R.string.plan_archive to onArchive)
                 add(R.string.plan_delete to onDelete)

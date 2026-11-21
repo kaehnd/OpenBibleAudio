@@ -101,6 +101,13 @@ class EnrollmentViewModel @Inject constructor(
     fun markNotDone(day: Int) = viewModelScope.launch { plans.markNotDone(enrollmentId, day) }
     fun skipToToday() = viewModelScope.launch { plans.skipToToday(enrollmentId) }
     fun restart() = viewModelScope.launch { plans.restart(enrollmentId) }
+    fun matchSchedule() = viewModelScope.launch { plans.matchSchedule(enrollmentId) }
+    fun startFromDay(day: Int) = viewModelScope.launch {
+        plans.startFromDay(enrollmentId, day)
+        // The rolling window moves to the new day, and the days now done may free their episodes.
+        downloads.applyRetention()
+        downloads.start(enrollmentId)
+    }
     fun setPaused(paused: Boolean) = viewModelScope.launch { plans.setPaused(enrollmentId, paused) }
     fun archive() = viewModelScope.launch { plans.archive(enrollmentId) }
     fun delete() = viewModelScope.launch {

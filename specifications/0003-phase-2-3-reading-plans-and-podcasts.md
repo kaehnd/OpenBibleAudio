@@ -272,7 +272,8 @@ manual_pin
    that's already imported is a no-op. A newer `version` is stored next to the old one, and
    existing enrollments keep their version until the user chooses "Update plan" (open question 4).
 2. **Enroll** dialog: Bible version (if more than one is READY), start date (default today; the
-   date only drives "days behind"), and, for plans with a podcast, the cycle and download choices
+   date only drives "days behind"), **start at day** (default 1: for joining part-way, days
+   before it are marked COMPLETE, and entering it moves the start date so that day is today), and, for plans with a podcast, the cycle and download choices
    in §7.2 / §8.1. One plan can have several enrollments (e.g. two people on one phone), with no
    uniqueness constraint.
 
@@ -314,6 +315,11 @@ manual_pin
   "Complete" for an item uses the spec 0002 rule (≥ 95 % or a natural end).
 - **Skip to today** marks every PENDING day before the calendar day as SKIPPED. **Mark complete** /
   **Mark not done** per day on the phone. **Restart plan** resets every day to PENDING.
+- **Match schedule to my progress** (offered when behind or ahead) sets `startDate` so the current
+  day is today's calendar day (`PlanProgress.startDateFor`). Statuses don't change.
+- **Start from day N** marks the open days before N COMPLETE, resets day N and later to PENDING
+  (their item completions are cleared), and sets `startDate` so N is today's day, in one
+  transaction. Episode downloads are then re-planned (§8.1, §8.4).
 - `PlanProgress` (pure Kotlin) computes all of this from rows, and is unit-tested.
 
 ---
@@ -495,7 +501,7 @@ root
 |---|---|
 | **Plans** (new bottom-nav destination) | Enrollment cards: name, "Day 47 of 365", behind badge, download status ("312 / 365 downloaded"). An "Import plan" FAB. A list of imported plans with "Enroll". |
 | **Enroll** | §6.1 and §7.2 / §8.1 choices, with sizes and free space. |
-| **Enrollment** | A "Play today" button. Day list (lazy, the current day scrolled into view): readings, status icon, episode state, per-day overflow (Play, Mark complete / not done, Download / Delete episode, Pin episode). Header actions: Skip to today, Download mode, Restart, Archive, Delete. |
+| **Enrollment** | A "Play today" button. Day list (lazy, the current day scrolled into view): readings, status icon, episode state, per-day overflow (Play, Mark complete / not done, Download / Delete episode, Pin episode). Header actions: Match schedule to my progress (when behind or ahead), Skip to today, Download mode, Start from day…, Restart, Archive, Delete. |
 | **Settings** | A Podcasts section: unmetered only, retention days, keep played, streaming fallback, podcast speed, continue to next day. |
 
 Strings live in `strings.xml`. The plan name, episode titles and readings are user data and shown as-is.

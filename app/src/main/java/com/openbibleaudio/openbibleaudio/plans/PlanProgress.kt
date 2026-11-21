@@ -91,6 +91,16 @@ object PlanProgress {
             .filter { (statuses[it] ?: DayStatus.PENDING).isOpen() }
             .associateWith { DayStatus.SKIPPED }
 
+    /** The start date that makes [day] today's calendar day: on schedule, neither behind nor ahead. */
+    fun startDateFor(day: Int, today: LocalDate): LocalDate = today.minusDays((day - 1).toLong())
+
+    /**
+     * "Start from day N": the open days before [day], which become COMPLETE. Every day from [day] on
+     * is reset to not done separately.
+     */
+    fun daysCompletedByStartingAt(day: Int, statuses: Map<Int, DayStatus>): List<Int> =
+        (1 until day).filter { (statuses[it] ?: DayStatus.PENDING).isOpen() }
+
     /** The day to play after [day] when "continue to next day" is on: the next open day after it. */
     fun nextDayAfter(day: Int, dayCount: Int, statuses: Map<Int, DayStatus>): Int? =
         (day + 1..dayCount).firstOrNull { (statuses[it] ?: DayStatus.PENDING).isOpen() }

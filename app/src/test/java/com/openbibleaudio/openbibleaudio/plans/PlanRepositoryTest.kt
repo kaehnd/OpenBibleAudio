@@ -146,6 +146,68 @@ class PlanRepositoryTest {
     }
 
     @Test
+    fun matchingTheScheduleMovesTheStartDateNotTheProgress() = runBlocking<Unit> {
+        val e = enrollSmall()
+        repo.markComplete(e, 1)
+        repo.markComplete(e, 2)
+        assertEquals(1, repo.summary(e)!!.position.ahead) // day 3 current, calendar day 1
+
+        assertTrue(repo.matchSchedule(e))
+        val s = repo.summary(e)!!
+        assertEquals(3, s.position.currentDay)
+        assertEquals(3, s.position.calendarDay)
+        assertEquals(0, s.position.ahead)
+        assertEquals(start.minusDays(2).toString(), s.enrollment.startDate)
+        assertEquals(DayStatus.COMPLETE, s.statuses[1])
+    }
+
+    @Test
+    fun startingFromADayCompletesTheDaysBeforeAndReopensTheRest() = runBlocking<Unit> {
+        val e = enrollSmall()
+        finishDay(e, 1)
+        repo.markComplete(e, 3)
+
+        repo.startFromDay(e, 2)
+        var s = repo.summary(e)!!
+        assertEquals(DayStatus.COMPLETE, s.statuses[1])
+        assertEquals(null, s.statuses[2])
+        assertEquals(null, s.statuses[3]) // was complete: reopened
+        assertEquals(2, s.position.currentDay)
+        assertEquals(2, s.position.calendarDay)
+        // Day 1's item completions are kept; day 3's are gone.
+        assertEquals(2, db.planDao().completedItems(e, 1).size)
+        assertEquals(emptyList(), db.planDao().completedItems(e, 3))
+
+        // Jumping forward to the last day.
+        repo.startFromDay(e, 3)
+        s = repo.summary(e)!!
+        assertEquals(DayStatus.COMPLETE, s.statuses[2])
+        assertEquals(3, s.position.currentDay)
+        assertEquals(EnrollmentState.ACTIVE, s.enrollment.state)
+    }
+
+    @Test
+    fun enrollingPartWayCompletesTheEarlierDays() = runBlocking<Unit> {
+        importSmall()
+        val e = repo.enroll("small", 1, startDate = PlanProgress.startDateFor(3, today), startDay = 3)
+        val s = repo.summary(e)!!
+        assertEquals(mapOf(1 to DayStatus.COMPLETE, 2 to DayStatus.COMPLETE), s.statuses)
+        assertEquals(3, s.position.currentDay)
+        assertEquals(0, s.position.ahead)
+        assertEquals(0, s.position.behind)
+    }
+
+    /** Deleting a plan while its day plays used to crash on a foreign key (found by VoiceSearchPlaybackTest). */
+    @Test
+    fun completingAnItemOfADeletedEnrollmentRecordsNothing() = runBlocking<Unit> {
+        val e = enrollSmall()
+        val q = queue(e, 1)
+        repo.unenroll(e)
+        assertNull(repo.recordItemCompleted(q, "ch/GEN/1"))
+        assertNull(repo.summary(e))
+    }
+
+    @Test
     fun episodeBlocksCompletionOnlyWhenItWasInTheQueue() = runBlocking<Unit> {
         val e = enrollSmall()
         val withEpisode = queue(e, 1, EpisodeAvailability.Local("0123456789ab", "0123456789abcdef", "file:///e.mp3"))

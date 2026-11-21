@@ -64,7 +64,7 @@ sealed interface PlansDialog {
      * [notes] are non-error findings from import, e.g. partial coverage. [podcast] is null for a
      * plan without a podcast.
      */
-    data class Enroll(val plan: PlanChoice, val notes: List<Issue> = emptyList(), val podcast: EnrollPodcast? = null) : PlansDialog
+    data class Enroll(val plan: PlanChoice, val notes: List<Issue> = emptyList(), val podcast: EnrollPodcast? = null, val dayCount: Int = 1) : PlansDialog
 }
 
 /**
@@ -182,7 +182,7 @@ class PlansViewModel @Inject constructor(
     private suspend fun openEnroll(choice: PlanChoice, notes: List<Issue> = emptyList()) {
         val plan = plans.plan(choice.id, choice.version)
         val podcast = plan?.podcast
-        _dialog.value = PlansDialog.Enroll(choice, notes, if (podcast != null) EnrollPodcast.Loading else null)
+        _dialog.value = PlansDialog.Enroll(choice, notes, if (podcast != null) EnrollPodcast.Loading else null, plan?.dayCount ?: 1)
         if (plan == null || podcast == null) return
 
         val refresh = podcasts.refresh(plan)
@@ -198,12 +198,12 @@ class PlansViewModel @Inject constructor(
         _dialog.update { d -> if (d is PlansDialog.Enroll && d.plan == choice) d.copy(podcast = state) else d }
     }
 
-    fun enroll(plan: PlanChoice, versionId: String?, startDate: LocalDate, podcastCycle: Int?, downloadMode: DownloadMode) {
+    fun enroll(plan: PlanChoice, versionId: String?, startDate: LocalDate, podcastCycle: Int?, downloadMode: DownloadMode, startDay: Int = 1) {
         _dialog.value = null
         viewModelScope.launch {
             val id = plans.enroll(
                 plan.id, plan.version, versionId = versionId, startDate = startDate,
-                podcastCycle = podcastCycle, downloadMode = downloadMode,
+                podcastCycle = podcastCycle, downloadMode = downloadMode, startDay = startDay,
             )
             if (plans.plan(plan.id, plan.version)?.podcast != null) {
                 FeedRefreshWorker.schedule(workManager)
