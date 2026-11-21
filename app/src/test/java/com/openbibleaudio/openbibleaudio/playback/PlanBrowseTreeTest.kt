@@ -13,6 +13,7 @@ import com.openbibleaudio.openbibleaudio.plans.EnrollmentSummary
 import com.openbibleaudio.openbibleaudio.plans.PlanProgress
 import com.openbibleaudio.openbibleaudio.plans.PlanResumption
 import com.openbibleaudio.openbibleaudio.plans.PlanVoice
+import com.openbibleaudio.openbibleaudio.podcasts.EpisodeBrowseState
 import org.junit.Test
 import java.time.LocalDate
 import kotlin.test.assertEquals
@@ -74,6 +75,21 @@ class PlanBrowseTreeTest {
         val plans = tree.children(MediaId.Plans, snap, state)!!
         assertEquals(listOf("plan/3", "plan/4"), plans.map { it.id })
         assertEquals("Day 1 · 3 behind", plans[1].subtitle)
+    }
+
+    @Test
+    fun todaysSubtitleCarriesTheEpisodeStateForPodcastPlansOnly() {
+        val podcastPlan = plan.copy(podcast = com.openbibleaudio.core.model.plan.PlanPodcast("https://feed.example.com/x.xml", match = com.openbibleaudio.core.model.plan.EpisodeMatch(titleRegex = "^Day (\\d+)")))
+        val state = PlanBrowseState(
+            listOf(summary(3, emptyMap(), def = podcastPlan), summary(4, emptyMap())),
+            null,
+            episodes = mapOf(3L to EpisodeBrowseState.DOWNLOADED, 4L to EpisodeBrowseState.NOT_DOWNLOADED),
+        )
+        val today = tree.children(MediaId.Today, snap, state)!!
+        assertEquals("GEN 1 · DOWNLOADED", today[0].subtitle)
+        // Plan 4 has no podcast, so a stray state is ignored.
+        assertEquals("GEN 1", today[1].subtitle)
+        assertEquals("GEN 1 · DOWNLOADED", tree.node(MediaId.EnrollmentToday(3), snap, state)!!.subtitle)
     }
 
     @Test

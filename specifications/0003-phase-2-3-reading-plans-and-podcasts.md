@@ -288,7 +288,8 @@ manual_pin
   Recap", the artist = feed title and the episode title as subtitle.
 - At the end of a day's queue playback stops, unless `continueToNextDay` is on. Then the next
   incomplete day is appended when the last item starts (regardless of the calendar, §6.3), so
-  listening can run on through several days in one drive.
+  listening can run on through several days in one drive. Building the next day takes a moment.
+  If a short last item has already ended by then, playback carries on into the appended day.
 - With `continueToNextDay` off, the listener continues manually: **Today** plays the following
   day straight away. The phone's Now Playing shows a "Play Day 48 next" button when a
   plan day's queue has ended.
@@ -468,8 +469,9 @@ root
   item (or the info item *"No plans yet. Add one on your phone."*), and Plans shows that same info item.
 - `plan/{e}/today` always means the *current* day (§6.3), even when the calendar day is already
   done; its title adds "(up next)" in that case.
-- The `today` subtitle shows the episode's state: *Recap ✓* (downloaded), *Recap not downloaded* or
-  *No recap for this day*.
+- The `today` subtitle shows the episode's state: *Episode ✓* (downloaded), *Episode streams*,
+  *Episode not downloaded*, *Episode no longer available* or *No episode for this day*. "Recap" is
+  TBR's word, so the app says "Episode". It's refreshed when a download finishes or fails.
 - The day group size is 30, so the list stays under Auto's limits. The group that holds the current
   day comes first in the list.
 - `notifyChildrenChanged` fires for `today`, `plan` and `plan/{e}` when progress, downloads or

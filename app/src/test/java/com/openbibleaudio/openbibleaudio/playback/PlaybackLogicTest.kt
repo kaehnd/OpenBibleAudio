@@ -1,5 +1,6 @@
 package com.openbibleaudio.openbibleaudio.playback
 
+import com.openbibleaudio.openbibleaudio.podcasts.EpisodeBrowseState
 import com.openbibleaudio.core.model.Book
 import com.openbibleaudio.core.model.ChapterRef
 import com.openbibleaudio.core.model.MediaId
@@ -48,6 +49,7 @@ internal object Titles : BrowseTitles {
     }
     override fun reading(reading: Reading) = "${reading.book.usfm} ${reading.from}" + (reading.to?.let { "-$it" } ?: "")
     override fun continueItem(title: String) = "Continue: $title"
+    override fun withEpisode(readings: String?, state: EpisodeBrowseState) = "$readings · $state"
 }
 
 class QueueBuilderTest {

@@ -15,6 +15,7 @@ import com.openbibleaudio.core.model.plan.Reading
 import com.openbibleaudio.openbibleaudio.plans.DayStatus
 import com.openbibleaudio.openbibleaudio.plans.PlanPosition
 import com.openbibleaudio.openbibleaudio.R
+import com.openbibleaudio.openbibleaudio.podcasts.EpisodeBrowseState
 import com.openbibleaudio.openbibleaudio.library.ResolvedChapter
 
 /** Book names from resources, in canonical order (`R.array.book_names`). */
@@ -76,6 +77,19 @@ class ResourceBrowseTitles(private val context: Context, private val books: Book
     }
 
     override fun continueItem(title: String) = context.getString(R.string.plan_continue, title)
+
+    override fun withEpisode(readings: String?, state: EpisodeBrowseState): String {
+        val episode = context.getString(
+            when (state) {
+                EpisodeBrowseState.DOWNLOADED -> R.string.episode_state_downloaded
+                EpisodeBrowseState.STREAMING -> R.string.episode_state_streaming
+                EpisodeBrowseState.NOT_DOWNLOADED -> R.string.episode_state_not_downloaded
+                EpisodeBrowseState.NO_LONGER_AVAILABLE -> R.string.episode_state_gone
+                EpisodeBrowseState.NONE -> R.string.episode_state_none
+            },
+        )
+        return if (readings.isNullOrEmpty()) episode else context.getString(R.string.readings_with_episode, readings, episode)
+    }
 }
 
 /** Maps browse nodes and resolved chapters to Media3 [MediaItem]s (spec 0002 §7.2, §7.4). */
@@ -110,6 +124,24 @@ class MediaItemFactory(private val books: BookTitles) {
      */
     fun planChapter(id: MediaId.PlanItem, ref: ChapterRef, version: VersionInfo, resolved: ResolvedChapter, albumTitle: String): MediaItem =
         chapterItem(id.format(), ref, version, resolved, albumTitle, chaptersInBook = 0)
+
+    /**
+     * A day's episode (spec 0003 §6.2): titled [title] ("Day 1 · The Bible Recap"), the feed title as
+     * artist and the episode title as subtitle ([subtitle] when streaming, §8.6).
+     */
+    fun planEpisode(id: MediaId.PlanItem, uri: String, title: String, subtitle: String, artist: String?, albumTitle: String, durationMs: Long?): MediaItem {
+        val metadata = MediaMetadata.Builder()
+            .setTitle(title)
+            .setSubtitle(subtitle)
+            .setArtist(artist)
+            .setAlbumTitle(albumTitle)
+            .setMediaType(MediaMetadata.MEDIA_TYPE_PODCAST_EPISODE)
+            .setIsPlayable(true)
+            .setIsBrowsable(false)
+            .apply { durationMs?.let { setDurationMs(it) } }
+            .build()
+        return MediaItem.Builder().setMediaId(id.format()).setUri(uri).setMediaMetadata(metadata).build()
+    }
 
     private fun chapterItem(
         mediaId: String,

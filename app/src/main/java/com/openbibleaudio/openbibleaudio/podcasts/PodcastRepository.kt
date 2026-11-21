@@ -135,6 +135,9 @@ class PodcastRepository(
         return dao.episodeForDay(feedId, cycle, day)
     }
 
+    /** The feed's own title (e.g. "The Bible Recap"), once it has been fetched. */
+    suspend fun feedTitle(plan: PlanDefinition): String? = plan.podcast?.let { dao.feed(feedId(it))?.title }
+
     companion object {
         val STALE_AFTER: Duration = Duration.ofHours(12)
 

@@ -8,6 +8,7 @@ import com.openbibleaudio.core.model.plan.Reading
 import com.openbibleaudio.openbibleaudio.plans.DayStatus
 import com.openbibleaudio.openbibleaudio.plans.EnrollmentSummary
 import com.openbibleaudio.openbibleaudio.plans.PlanPosition
+import com.openbibleaudio.openbibleaudio.podcasts.EpisodeBrowseState
 
 /** Display strings for the browse tree. The service implements this with string resources. */
 interface BrowseTitles {
@@ -30,13 +31,22 @@ interface BrowseTitles {
     fun day(day: Int, status: DayStatus): String
     fun reading(reading: Reading): String
     fun continueItem(title: String): String
+    /** The Today subtitle: the readings plus the day's episode state, e.g. "Genesis 46–47 · Episode ✓". */
+    fun withEpisode(readings: String?, state: EpisodeBrowseState): String?
 }
 
 /** The saved resumption item, offered on the Today tab. */
 data class ResumeEntry(val mediaId: String, val title: String)
 
-/** Plan input to the browse tree: enrollments with progress, and the resumption item. */
-data class PlanBrowseState(val enrollments: List<EnrollmentSummary>, val resume: ResumeEntry?) {
+/**
+ * Plan input to the browse tree: enrollments with progress, the resumption item, and the state of
+ * each podcast enrollment's current-day episode ([episodes], by enrollment ID).
+ */
+data class PlanBrowseState(
+    val enrollments: List<EnrollmentSummary>,
+    val resume: ResumeEntry?,
+    val episodes: Map<Long, EpisodeBrowseState> = emptyMap(),
+) {
     fun enrollment(id: Long): EnrollmentSummary? = enrollments.firstOrNull { it.enrollment.id == id }
 
     companion object {
@@ -95,13 +105,13 @@ class BrowseTree(private val titles: BrowseTitles) {
         }
         is MediaId.Chapter -> null
         MediaId.Today -> buildList {
-            plans.enrollments.mapNotNullTo(this) { enrollmentToday(it) }
+            plans.enrollments.mapNotNullTo(this) { enrollmentToday(it, plans) }
             plans.resume?.let { add(BrowseNode(it.mediaId, titles.continueItem(it.title), playable = true, browsable = false)) }
             if (isEmpty()) add(noPlansItem())
         }
         MediaId.Plans -> plans.enrollments.map { enrollmentNode(it) }.ifEmpty { listOf(noPlansItem()) }
         is MediaId.Enrollment -> plans.enrollment(id.enrollmentId)?.let { e ->
-            listOfNotNull(enrollmentToday(e)) + dayGroups(e).map { (from, to) -> dayGroupNode(e, from, to) }
+            listOfNotNull(enrollmentToday(e, plans)) + dayGroups(e).map { (from, to) -> dayGroupNode(e, from, to) }
         }
         is MediaId.DayGroup -> plans.enrollment(id.enrollmentId)
             ?.takeIf { e -> dayGroups(e).contains(id.from to id.to) }
@@ -134,7 +144,7 @@ class BrowseTree(private val titles: BrowseTitles) {
         MediaId.Today -> BrowseNode(id.format(), titles.today, playable = false, browsable = true, listChildren = true)
         MediaId.Plans -> BrowseNode(id.format(), titles.plans, playable = false, browsable = true)
         is MediaId.Enrollment -> plans.enrollment(id.enrollmentId)?.let { enrollmentNode(it) }
-        is MediaId.EnrollmentToday -> plans.enrollment(id.enrollmentId)?.let { enrollmentToday(it) }
+        is MediaId.EnrollmentToday -> plans.enrollment(id.enrollmentId)?.let { enrollmentToday(it, plans) }
         is MediaId.DayGroup -> plans.enrollment(id.enrollmentId)
             ?.takeIf { e -> dayGroups(e).contains(id.from to id.to) }
             ?.let { e -> dayGroupNode(e, id.from, id.to) }
@@ -153,12 +163,13 @@ class BrowseTree(private val titles: BrowseTitles) {
     )
 
     /** `plan/{e}/today`: always the current day; null once the plan is finished. */
-    private fun enrollmentToday(e: EnrollmentSummary): BrowseNode? {
+    private fun enrollmentToday(e: EnrollmentSummary, plans: PlanBrowseState): BrowseNode? {
         val day = e.position.currentDay ?: return null
+        val episode = plans.episodes[e.enrollment.id]?.takeIf { e.plan.podcast != null }
         return BrowseNode(
             MediaId.EnrollmentToday(e.enrollment.id).format(),
             titles.enrollmentToday(e.plan.name, day, e.position.upNext),
-            readings(e, day),
+            if (episode != null) titles.withEpisode(readings(e, day), episode) else readings(e, day),
             playable = true, browsable = false,
         )
     }

@@ -2,6 +2,8 @@ package com.openbibleaudio.openbibleaudio.playback
 
 import android.app.PendingIntent
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Bundle
 import android.util.Log
 import androidx.annotation.OptIn
@@ -40,7 +42,11 @@ import com.openbibleaudio.openbibleaudio.plans.DayQueue
 import com.openbibleaudio.openbibleaudio.plans.EnrollmentSummary
 import com.openbibleaudio.openbibleaudio.plans.EpisodeAvailability
 import com.openbibleaudio.openbibleaudio.plans.DayStatus
+import com.openbibleaudio.openbibleaudio.data.db.PodcastDao
+import com.openbibleaudio.openbibleaudio.data.db.PodcastEpisodeEntity
 import com.openbibleaudio.openbibleaudio.podcasts.EpisodeDownloads
+import com.openbibleaudio.openbibleaudio.podcasts.EpisodePlayback
+import com.openbibleaudio.openbibleaudio.podcasts.PodcastStorage
 import com.openbibleaudio.openbibleaudio.podcasts.PodcastRepository
 import com.openbibleaudio.openbibleaudio.plans.EpisodeUnavailable
 import com.openbibleaudio.openbibleaudio.plans.PlanQueueBuilder
@@ -61,6 +67,7 @@ import kotlinx.coroutines.guava.future
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
@@ -80,6 +87,8 @@ class PlaybackService : MediaLibraryService() {
     @Inject lateinit var planRepository: PlanRepository
     @Inject lateinit var podcasts: PodcastRepository
     @Inject lateinit var episodeDownloads: EpisodeDownloads
+    @Inject lateinit var podcastStorage: PodcastStorage
+    @Inject lateinit var podcastDao: PodcastDao
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val snapshot = MutableStateFlow<LibrarySnapshot?>(null)
@@ -89,6 +98,9 @@ class PlaybackService : MediaLibraryService() {
     private val builtDays = mutableMapOf<Pair<Long, Int>, BuiltDay>()
 
     private class BuiltDay(val queue: DayQueue, val versionId: String)
+
+    /** Where each queued episode item starts when the queue reaches it (spec 0003 §8.5), by media ID. */
+    private val episodeStarts = mutableMapOf<String, Long>()
     private val tracker = CompletionTracker()
     private var settings = Settings()
 
@@ -134,6 +146,13 @@ class PlaybackService : MediaLibraryService() {
 
         scope.launch { library.snapshot.collect(::onSnapshot) }
         scope.launch { planRepository.enrollments.collect(::onEnrollments) }
+        scope.launch {
+            // A download finishing (or failing) changes Today's episode subtitle (spec 0003 §9.1, AD-13).
+            var first = true
+            podcastDao.observeDownloadStates().collect {
+                if (first) first = false else notifyPlanNodes(enrollments.value.orEmpty())
+            }
+        }
         scope.launch {
             settingsRepository.settings.collect { s ->
                 settings = s
@@ -191,12 +210,16 @@ class PlaybackService : MediaLibraryService() {
         val old = enrollments.value
         enrollments.value = new
         if (old == null || old == new) return
-        // Progress or enrollments changed: refresh Today, Plans and each enrollment (spec 0003 §9.1, AD-13).
+        notifyPlanNodes(old + new)
+    }
+
+    /** Progress, enrollments or downloads changed: refresh Today, Plans and each enrollment (spec 0003 §9.1, AD-13). */
+    private fun notifyPlanNodes(summaries: List<EnrollmentSummary>) {
         val ids = buildSet {
             add(MediaId.ROOT)
             add(MediaId.TODAY)
             add(MediaId.PLAN)
-            (old + new).forEach { e ->
+            summaries.forEach { e ->
                 add(MediaId.Enrollment(e.enrollment.id).format())
                 tree.dayGroups(e).forEach { (from, to) -> add(MediaId.DayGroup(e.enrollment.id, from, to).format()) }
             }
@@ -204,8 +227,15 @@ class PlaybackService : MediaLibraryService() {
         ids.forEach { session.notifyChildrenChanged(it, Int.MAX_VALUE, null) }
     }
 
-    private suspend fun planState(): PlanBrowseState =
-        PlanBrowseState(enrollments.filterNotNull().first(), resumeEntry())
+    private suspend fun planState(): PlanBrowseState {
+        val summaries = enrollments.filterNotNull().first()
+        val episodes = summaries.mapNotNull { e ->
+            val day = e.position.currentDay ?: return@mapNotNull null
+            if (e.plan.podcast == null) return@mapNotNull null
+            e.enrollment.id to EpisodePlayback.browseState(dayEpisode(e, day).availability)
+        }.toMap()
+        return PlanBrowseState(summaries, resumeEntry(), episodes)
+    }
 
     /** The saved item as a "Continue: …" entry on the Today tab, if it can still be played. */
     private suspend fun resumeEntry(): ResumeEntry? {
@@ -258,27 +288,57 @@ class PlaybackService : MediaLibraryService() {
         val d = day ?: summary.position.currentDay ?: throw NotFound(getString(R.string.error_plan_finished, summary.plan.name))
         val mediaItems = planItems(summary, d)
         val start = mediaItems.indexOfFirst { (MediaId.parse(it.mediaId) as? MediaId.PlanItem)?.index == startIndex }
-        return MediaSession.MediaItemsWithStartPosition(mediaItems, start.coerceAtLeast(0), if (start < 0) 0 else startPositionMs.coerceAtLeast(0))
+        val position = when {
+            start < 0 -> 0
+            // Starting on an episode with no explicit position: where it stopped last time (§8.5).
+            startPositionMs <= 0 -> episodeStarts[mediaItems[start].mediaId] ?: 0
+            else -> startPositionMs
+        }
+        return MediaSession.MediaItemsWithStartPosition(mediaItems, start.coerceAtLeast(0), position)
+    }
+
+    private class DayEpisode(val availability: EpisodeAvailability, val row: PodcastEpisodeEntity?)
+
+    /** The day's episode and whether it can play: downloaded file, else stream (if allowed and online), else why not. */
+    private suspend fun dayEpisode(summary: EnrollmentSummary, day: Int): DayEpisode {
+        if (summary.plan.podcast == null) return DayEpisode(EpisodeAvailability.Unavailable(EpisodeUnavailable.NO_PODCAST), null)
+        val row = podcasts.episodeForDay(summary.enrollment, summary.plan, day)
+        // The app-chosen path, not the stored localPath, so nothing outside podcasts/ is ever played.
+        val uri = row?.let { podcastStorage.file(it.feedId, it.guidHash) }
+            ?.takeIf { withContext(Dispatchers.IO) { it.isFile } }
+            ?.toURI()?.toString()
+        return DayEpisode(EpisodePlayback.availability(row, uri, settings.allowEpisodeStreaming, isOnline()), row)
+    }
+
+    private fun isOnline(): Boolean {
+        val cm = getSystemService(ConnectivityManager::class.java) ?: return false
+        val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return false
+        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
     }
 
     private suspend fun planItems(summary: EnrollmentSummary, day: Int): List<MediaItem> {
         val s = snap()
         val version = planVersion(summary, s) ?: throw NotFound(getString(R.string.browse_no_library))
-        val episode = if (summary.plan.podcast == null) {
-            EpisodeAvailability.Unavailable(EpisodeUnavailable.NO_PODCAST)
-        } else if (podcasts.episodeForDay(summary.enrollment, summary.plan, day) == null) {
-            EpisodeAvailability.Unavailable(EpisodeUnavailable.NOT_MATCHED)
-        } else {
-            // A matched episode joins the queue once downloads and episode items land (spec 0003 §8).
-            EpisodeAvailability.Unavailable(EpisodeUnavailable.NOT_DOWNLOADED)
-        }
-        val queue = PlanQueueBuilder.build(summary.enrollment.id, summary.plan, day, s.chapters(version.versionId), episode)
+        val episode = dayEpisode(summary, day)
+        val queue = PlanQueueBuilder.build(summary.enrollment.id, summary.plan, day, s.chapters(version.versionId), episode.availability)
             ?: throw NotFound(getString(R.string.error_plan_missing))
         val chapters = queue.entries.filterIsInstance<QueueEntry.Chapter>()
         val resolved = audioSource.resolveAll(version.versionId, chapters.map { it.ref })
         val album = getString(R.string.plan_queue_album, summary.plan.name, day)
-        val mediaItems = chapters.mapNotNull { entry ->
-            resolved[entry.ref]?.let { items.planChapter(entry.mediaId, entry.ref, version, it, album) }
+        val feedTitle = if (episode.row != null) podcasts.feedTitle(summary.plan) else null
+        val mediaItems = queue.entries.mapNotNull { entry ->
+            when (entry) {
+                is QueueEntry.Chapter -> resolved[entry.ref]?.let { items.planChapter(entry.mediaId, entry.ref, version, it, album) }
+                is QueueEntry.Episode -> episode.row?.let { row ->
+                    episodeStarts[entry.mediaId.format()] = EpisodePlayback.startPositionMs(row)
+                    items.planEpisode(
+                        entry.mediaId, entry.uri,
+                        title = getString(R.string.episode_item_title, day, feedTitle ?: summary.plan.name),
+                        subtitle = if (entry.streaming) getString(R.string.episode_streaming, row.title) else row.title,
+                        artist = feedTitle, albumTitle = album, durationMs = row.durationMs,
+                    )
+                }
+            }
         }
         if (mediaItems.isEmpty()) throw NotFound(getString(R.string.error_plan_day_empty, day, version.abbreviation))
         builtDays[summary.enrollment.id to day] = BuiltDay(queue, version.versionId)
@@ -540,13 +600,36 @@ class PlaybackService : MediaLibraryService() {
     }
 
     private fun saveAsync() {
+        val episode = episodePosition()
+        if (episode != null) scope.launch { saveEpisode(episode) }
         val state = currentState() ?: return
         scope.launch { resumption.save(state) }
     }
 
     private fun saveNow() {
-        val state = currentState() ?: return
-        runBlocking { resumption.save(state) }
+        val episode = episodePosition()
+        val state = currentState()
+        runBlocking {
+            episode?.let { saveEpisode(it) }
+            state?.let { resumption.save(it) }
+        }
+    }
+
+    private class EpisodePosition(val mediaId: String, val entry: QueueEntry.Episode, val positionMs: Long)
+
+    /** The playing episode and its position, if an episode is playing. */
+    private fun episodePosition(): EpisodePosition? {
+        val item = player.currentMediaItem ?: return null
+        if (!isEpisode(item)) return null
+        val id = MediaId.parse(item.mediaId) as? MediaId.PlanItem ?: return null
+        val entry = builtDays[id.enrollmentId to id.day]?.queue?.entries?.firstOrNull { it.mediaId == id } as? QueueEntry.Episode ?: return null
+        return EpisodePosition(item.mediaId, entry, player.currentPosition)
+    }
+
+    /** Per-episode resume (spec 0003 §8.5): saved with the resumption state, shared by every enrollment. */
+    private suspend fun saveEpisode(p: EpisodePosition) {
+        episodeStarts[p.mediaId] = (p.positionMs - EpisodePlayback.RESUME_BACK_MS).coerceAtLeast(0)
+        podcastDao.setPosition(p.entry.feedId, p.entry.guidHash, p.positionMs, System.currentTimeMillis())
     }
 
     private fun record(mediaId: String?) {
@@ -571,10 +654,15 @@ class PlaybackService : MediaLibraryService() {
             return
         }
         scope.launch {
-            if (entry is QueueEntry.Chapter) {
-                completions.insert(
+            when (entry) {
+                is QueueEntry.Chapter -> completions.insert(
                     ChapterCompletionEntity(versionId = built.versionId, book = entry.ref.book, chapter = entry.ref.chapter, completedAt = System.currentTimeMillis()),
                 )
+                // Played: the next start is from the beginning (spec 0003 §8.5).
+                is QueueEntry.Episode -> {
+                    podcastDao.markPlayed(entry.feedId, entry.guidHash, System.currentTimeMillis())
+                    episodeStarts[id.format()] = 0
+                }
             }
             val status = planRepository.recordItemCompleted(built.queue, entry.itemKey)
             if (status == DayStatus.COMPLETE && summaryHasPodcast(id.enrollmentId)) {
@@ -602,7 +690,14 @@ class PlaybackService : MediaLibraryService() {
             val nextItems = runCatching { planItems(summary, next) }.getOrNull() ?: return@launch
             // Still on the same last item? Then the queue hasn't changed under us.
             if (player.currentMediaItem?.mediaId == mediaItem.mediaId && player.currentMediaItemIndex == player.mediaItemCount - 1) {
+                val ended = player.playbackState == Player.STATE_ENDED
+                val firstNew = player.mediaItemCount
                 player.addMediaItems(nextItems)
+                // A short last item can end before the next day is built; carry on into it then.
+                if (ended) {
+                    player.seekTo(firstNew, episodeStarts[nextItems.first().mediaId] ?: 0)
+                    player.play()
+                }
             }
         }
     }
@@ -619,6 +714,12 @@ class PlaybackService : MediaLibraryService() {
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             record(tracker.end(naturalEnd = reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO))
             tracker.begin(mediaItem?.mediaId, mediaItem?.mediaMetadata?.durationMs ?: 0)
+            // The queue moved on into a partly played episode: pick up where it stopped (spec 0003 §8.5).
+            if (isEpisode(mediaItem) && player.currentPosition < 1_000 &&
+                (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK)
+            ) {
+                episodeStarts[mediaItem!!.mediaId]?.takeIf { it > 0 }?.let { player.seekTo(it) }
+            }
             applySpeed()
             maybeAppendNextDay(mediaItem)
             saveAsync()
@@ -652,6 +753,10 @@ class PlaybackService : MediaLibraryService() {
         override fun onPlayerError(error: PlaybackException) {
             val id = player.currentMediaItem?.mediaId
             Log.e(TAG, "Playback error on $id", error)
+            if (isEpisode(player.currentMediaItem)) {
+                session.setPlaybackException(PlaybackException(getString(R.string.error_episode_failed), error, error.errorCode))
+                return
+            }
             val chapter = id?.let { MediaId.parse(it) } as? MediaId.Chapter ?: return
             val abbreviation = snapshot.value?.version(chapter.versionId)?.abbreviation ?: chapter.versionId
             session.setPlaybackException(

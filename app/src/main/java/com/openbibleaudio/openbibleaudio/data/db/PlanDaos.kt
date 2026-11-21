@@ -187,6 +187,10 @@ interface PodcastDao {
     )
     suspend fun setDownloaded(feedId: String, guidHash: String, localPath: String, bytes: Long, durationMs: Long?)
 
+    /** Emits whenever an episode's download state changes (for Auto's Today subtitle, AD-13). */
+    @Query("SELECT guidHash || ':' || downloadState FROM podcast_episode WHERE downloadState IN ('DOWNLOADED', 'FAILED')")
+    fun observeDownloadStates(): Flow<List<String>>
+
     @Query("SELECT * FROM podcast_episode WHERE downloadState = :state")
     suspend fun episodesIn(state: DownloadState): List<PodcastEpisodeEntity>
 

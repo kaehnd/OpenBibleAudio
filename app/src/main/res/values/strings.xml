@@ -139,6 +139,15 @@
     <string name="enroll_confirm">Enroll</string>
     <string name="enroll_podcast">Podcast episodes</string>
     <string name="episodes_channel_name">Podcast downloads</string>
+    <string name="episode_state_downloaded">Episode ✓</string>
+    <string name="episode_state_streaming">Episode streams</string>
+    <string name="episode_state_not_downloaded">Episode not downloaded</string>
+    <string name="episode_state_gone">Episode no longer available</string>
+    <string name="episode_state_none">No episode for this day</string>
+    <string name="readings_with_episode">%1$s · %2$s</string>
+    <string name="episode_item_title">Day %1$d · %2$s</string>
+    <string name="error_episode_failed">This episode couldn\'t be played.</string>
+    <string name="episode_streaming">Streaming · %1$s</string>
     <string name="enroll_download">Download episodes</string>
     <plurals name="enroll_download_all">
         <item quantity="one">The episode — %2$s</item>
