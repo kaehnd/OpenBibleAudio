@@ -1,6 +1,7 @@
 package com.openbibleaudio.openbibleaudio.playback
 
 import android.content.Context
+import android.net.Uri
 import android.os.Bundle
 import androidx.annotation.OptIn
 import androidx.media3.common.MediaItem
@@ -92,9 +93,12 @@ class ResourceBrowseTitles(private val context: Context, private val books: Book
     }
 }
 
-/** Maps browse nodes and resolved chapters to Media3 [MediaItem]s (spec 0002 §7.2, §7.4). */
+/**
+ * Maps browse nodes and resolved chapters to Media3 [MediaItem]s (spec 0002 §7.2, §7.4).
+ * [chapterArt] gives a chapter number's artwork ([ChapterArtProvider]); Auto's grid needs one.
+ */
 @OptIn(UnstableApi::class)
-class MediaItemFactory(private val books: BookTitles) {
+class MediaItemFactory(private val books: BookTitles, private val chapterArt: (Int) -> Uri? = { null }) {
 
     fun browseItem(node: BrowseNode): MediaItem {
         val extras = Bundle()
@@ -109,6 +113,7 @@ class MediaItemFactory(private val books: BookTitles) {
             .setIsPlayable(node.playable)
             .setIsBrowsable(node.browsable)
             .setMediaType(if (node.playable) MediaMetadata.MEDIA_TYPE_AUDIO_BOOK_CHAPTER else MediaMetadata.MEDIA_TYPE_FOLDER_AUDIO_BOOKS)
+            .setArtworkUri(node.chapter?.let { chapterArt(it.ref.chapter) })
             .setExtras(extras)
             .build()
         return MediaItem.Builder().setMediaId(node.id).setMediaMetadata(metadata).build()
@@ -156,6 +161,7 @@ class MediaItemFactory(private val books: BookTitles) {
             .setArtist(version.abbreviation)
             .setAlbumTitle(albumTitle)
             .setTrackNumber(ref.chapter)
+            .setArtworkUri(chapterArt(ref.chapter))
             .apply { if (chaptersInBook > 0) setTotalTrackCount(chaptersInBook) }
             .setMediaType(MediaMetadata.MEDIA_TYPE_AUDIO_BOOK_CHAPTER)
             .setIsPlayable(true)

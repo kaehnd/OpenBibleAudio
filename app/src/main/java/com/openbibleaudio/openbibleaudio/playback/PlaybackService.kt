@@ -115,7 +115,7 @@ class PlaybackService : MediaLibraryService() {
         super.onCreate()
         books = BookTitles(this)
         tree = BrowseTree(ResourceBrowseTitles(this, books))
-        items = MediaItemFactory(books)
+        items = MediaItemFactory(books) { ChapterArtProvider.uri(this, it) }
         // Seek increments are fixed when the player is built, so read settings once up front.
         // A small DataStore read; changes to the increments apply the next time the service starts.
         settings = runBlocking { settingsRepository.current() }

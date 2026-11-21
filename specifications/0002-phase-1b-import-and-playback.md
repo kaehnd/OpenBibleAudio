@@ -269,7 +269,8 @@ Phase 1 has one implementation, `LocalBibleAudioSource`. It resolves through `ch
   - `MediaMetadata`: `title` "Genesis 1" (localised book name + chapter), `artist` = version
     abbreviation, `albumTitle` = book name, `trackNumber` = chapter, `totalTrackCount` = chapters
     in the book, `mediaType = MEDIA_TYPE_AUDIO_BOOK_CHAPTER`, `isPlayable = true`,
-    `isBrowsable = false`, and `durationMs` when known. No artwork in Phase 1 (Auto shows the app icon).
+    `isBrowsable = false`, and `durationMs` when known. `artworkUri` is the chapter-number tile
+    (below), so now-playing shows it too.
 
 ### 7.3 Queues & continuous play
 `QueueBuilder` is a pure function and unit-tested on the JVM, apart from the final `MediaItem` mapping:
@@ -302,6 +303,12 @@ root
   `…_BROWSABLE = LIST_ITEM` extras on the root `LibraryParams`, and on book and group nodes with
   `DESCRIPTION_EXTRAS_KEY_CONTENT_STYLE_PLAYABLE = GRID_ITEM`, so chapter numbers show as a grid.
   Chapter grid items use the title "1", "2", …. The full "Genesis 1" goes in now-playing metadata only.
+- **Chapter artwork:** grid tiles need an image, or Auto draws a warning triangle in each. Every
+  chapter item's `artworkUri` is `content://{applicationId}.art/chapter/{n}?v={version}`, served by
+  `ChapterArtProvider`: a generated PNG of the number, cream on the launcher icon's navy. It holds no
+  user data, so the provider is exported read-only for Auto to fetch it. `v` changes with the design
+  so Auto doesn't reuse cached images. Auto sets the tile size: on the DHU (Android Auto 18) the
+  grid is 3 tiles per row, and `CATEGORY_GRID_ITEM` is no denser, so the plain grid stays.
 - **No READY versions:** `bible` returns a single non-playable, non-browsable item (ID `info/no-library`):
   *"No Bible imported. Open OpenBibleAudio on your phone to import one."*
 - The service observes `LibraryRepository.versions` and calls `notifyChildrenChanged` for `bible`

@@ -59,6 +59,14 @@
             </intent-filter>
         </receiver>
 
+        <!-- Generated chapter-number artwork for Auto's grid. Exported so Auto can fetch it; it
+             serves only generated number images (no user data) and is read-only (spec 0002 §7.4). -->
+        <provider
+            android:name=".playback.ChapterArtProvider"
+            android:authorities="${applicationId}.art"
+            android:exported="true"
+            tools:ignore="ExportedContentProvider" />
+
         <meta-data
             android:name="com.google.android.gms.car.application"
             android:resource="@xml/automotive_app_desc" />
