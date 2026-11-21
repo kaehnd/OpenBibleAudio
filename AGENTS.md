@@ -21,7 +21,8 @@ which covers the vision, the numbered architectural decisions (AD-1 … AD-15) a
 | `:app` | Android application (Compose, Media3) | The app: playback service / Android Auto, import, plans, podcasts, UI |
 | `:core:model` | Pure Kotlin/JVM | Domain model shared with the importer CLI (books/canon, pack manifest schema + validator, …). **No Android dependencies.** |
 | `:core:importer` | Pure Kotlin/JVM | Scans a folder with a layout profile and builds/verifies a pack manifest (AD-5, spec 0001). Test fixtures (`InMemoryFileTree`, synthetic MP3s) live in `src/testFixtures`. |
-| `:tools:importer-cli` | JVM application | CLI around `:core:importer`: `profiles`, `generate`, `validate` |
+| `:core:podcast` | Pure Kotlin/JVM | RSS feed parser, episode→plan-day matcher and podcast cycle selection (spec 0003 §7). Uses the `org.xmlpull.v1` API: Android's parser on device, kxml2 on the JVM. The synthetic `TbrShapedFeed` lives in `src/testFixtures`. |
+| `:tools:importer-cli` | JVM application | CLI around `:core:importer` and `:core:podcast`: `profiles`, `generate`, `validate`, `plan from-feed`, `plan validate` |
 
 Keep domain logic that doesn't need Android in pure-Kotlin modules so it can be unit-tested on the JVM.
 All modules target JVM 17 (AD-1).
@@ -53,25 +54,41 @@ android build "?:app:assembleDebug"  # same via Android CLI (any Gradle task wor
 ## Importer CLI (Audio Bible Packs)
 
 ```bash
-python tools/download_bsb_gilbert.py                 # BSB test corpus → bible_audio/bsb_gilbert (gitignored, ~6 GB)
+python tools/download_openbible_audio.py gilbert     # BSB test corpus → bible_audio/bsb_gilbert (gitignored, ~6 GB)
+python tools/download_openbible_audio.py souer       # BSB, Souer narration → bible_audio/bsb_souer (~5 GB)
 ./gradlew :tools:importer-cli:run --args="profiles"
 ./gradlew :tools:importer-cli:run --args="generate bible_audio/bsb_gilbert --profile bsb-gilbert"
+./gradlew :tools:importer-cli:run --args="generate bible_audio/bsb_souer --profile bsb-souer"
 ./gradlew :tools:importer-cli:run --args="validate bible_audio/bsb_gilbert"
 ```
 
 `run` resolves relative paths from the repo root. Exit codes: 0 ok, 1 validation errors, 2 usage/IO error.
+
+## Reading plans
+
+`plans/` holds plan files (spec 0003). `plans/bible-recap-chronological.json` is generated from
+the Bible Recap feed's episode titles; regenerate it with the exact command in spec 0003 §4, and
+check it against the live feed with:
+
+```bash
+./gradlew :tools:importer-cli:run --args="plan validate plans/bible-recap-chronological.json --feed https://feed.podbean.com/thebiblerecap/feed.xml --readings-group 2"
+```
 
 ## Test
 
 **Every change should keep `./gradlew test` green, and new logic should come with unit tests.**
 
 ```bash
-./gradlew test                       # ALL JVM unit tests: :core:*, :tools:importer-cli and :app:testDebugUnitTest
+./gradlew test                       # ALL JVM unit tests: :core:* (model, importer, podcast), :tools:importer-cli and :app:testDebugUnitTest
 ./gradlew :core:model:test           # pure-Kotlin module tests (fast, no Android)
 ./gradlew :app:testDebugUnitTest     # app local unit tests (JVM)
 
 # Opt-in test against the real BSB corpus (skipped unless the folder is given)
 ./gradlew :core:importer:test --tests "*BsbCorpusTest*" -Poba.corpus.bsb=<abs path>/bible_audio/bsb_gilbert
+./gradlew :core:importer:test --tests "*BsbCorpusTest*" -Poba.corpus.bsb=<abs path>/bible_audio/bsb_souer -Poba.corpus.profile=bsb-souer
+
+# Opt-in test against a saved copy of the real Bible Recap feed (skipped unless given)
+./gradlew :core:podcast:test --tests "*TbrFeedTest*" -Poba.feed.tbr=<abs path>/feed.xml -Poba.plan.tbr=<abs path>/plans/bible-recap-chronological.json
 
 # Single class / method (Gradle test filter; wildcards allowed)
 ./gradlew :core:model:test --tests "com.openbibleaudio.core.model.BookTest"
@@ -158,6 +175,15 @@ Write output to a scratch/temp directory, not inside the repo.
 - Don't remove `testOptions.unitTests.isIncludeAndroidResources = true` from `app/build.gradle.kts`.
   Without it, AGP's Compose Preview tasks fail configuration, which breaks `check`, `lint` and `tasks`.
 - The Android CLI copies an `init.gradle.kts` into `.gradle/` (gitignored). That's expected.
+- **Reinstalling while Android Auto is running hides the app in Auto.** `adb install -r` (or Run
+  from Android Studio) briefly removes the package. Android Auto's long-lived `:projection` process
+  drops the app then and doesn't add it back, so the car or DHU shows only the media controls ("open
+  it on your phone") until Auto restarts. After installing a new build, run
+  `adb shell am force-stop com.google.android.projection.gearhead`. For the DHU, then start the head
+  unit server again.
+- **DHU sessions:** start the DHU only once per head unit server start. A second connection to the
+  same server crashes Auto's DHU service ("Already connected"); force-stop Auto and restart the
+  server. Voice in Auto goes through Gemini, which passes the app's name inside the query (spec 0002 §7.7).
 
 ## Conventions
 

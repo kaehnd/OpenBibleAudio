@@ -71,6 +71,8 @@ room {
 
 dependencies {
     implementation(project(":core:model"))
+    // Feed parsing uses org.xmlpull.v1, which Android provides (spec 0003 §11).
+    implementation(project(":core:podcast"))
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
@@ -104,6 +106,8 @@ dependencies {
     implementation(libs.androidx.documentfile)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.guava)
+    implementation(platform(libs.okhttp.bom))
+    implementation(libs.okhttp)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlin.test)
@@ -113,6 +117,9 @@ dependencies {
     testImplementation(libs.androidx.junit)
     testImplementation(libs.androidx.room.testing)
     testImplementation(libs.androidx.work.testing)
+    testImplementation(platform(libs.okhttp.bom))
+    testImplementation(libs.okhttp.mockwebserver)
+    testImplementation(testFixtures(project(":core:podcast")))
     testImplementation(project(":core:importer"))
     testImplementation(testFixtures(project(":core:importer")))
 

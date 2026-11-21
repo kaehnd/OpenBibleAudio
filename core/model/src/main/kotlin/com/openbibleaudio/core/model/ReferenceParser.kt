@@ -141,7 +141,7 @@ object BookNames {
     private val numbered: Map<List<Book>, List<String>> = mapOf(
         listOf(Book.FIRST_SAMUEL, Book.SECOND_SAMUEL) to listOf("samuel", "sam", "sa", "sm"),
         listOf(Book.FIRST_KINGS, Book.SECOND_KINGS) to listOf("kings", "king", "kgs", "ki"),
-        listOf(Book.FIRST_CHRONICLES, Book.SECOND_CHRONICLES) to listOf("chronicles", "chron", "chr"),
+        listOf(Book.FIRST_CHRONICLES, Book.SECOND_CHRONICLES) to listOf("chronicles", "chron", "chr", "ch"),
         listOf(Book.FIRST_CORINTHIANS, Book.SECOND_CORINTHIANS) to listOf("corinthians", "cor", "co"),
         listOf(Book.FIRST_THESSALONIANS, Book.SECOND_THESSALONIANS) to listOf("thessalonians", "thess", "thes", "th"),
         listOf(Book.FIRST_TIMOTHY, Book.SECOND_TIMOTHY) to listOf("timothy", "tim", "ti"),

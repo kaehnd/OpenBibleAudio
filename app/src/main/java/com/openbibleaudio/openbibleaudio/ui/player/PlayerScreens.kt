@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -53,6 +54,11 @@ fun NowPlayingScreen(state: PlayerUiState, viewModel: PlayerViewModel, contentPa
         Text(state.title.orEmpty(), style = MaterialTheme.typography.headlineMedium)
         state.subtitle?.let { Text(it, style = MaterialTheme.typography.titleMedium) }
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp)) }
+        state.nextPlanDay?.let { next ->
+            Button(onClick = { viewModel.playMediaId(next.mediaId) }, modifier = Modifier.padding(top = 16.dp)) {
+                Text(stringResource(R.string.play_next_day, next.day))
+            }
+        }
         Spacer(Modifier.height(32.dp))
 
         var dragging by remember { mutableStateOf<Float?>(null) }

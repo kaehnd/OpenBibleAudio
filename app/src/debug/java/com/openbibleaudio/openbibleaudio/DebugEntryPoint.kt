@@ -1,7 +1,11 @@
 package com.openbibleaudio.openbibleaudio
 
 import com.openbibleaudio.openbibleaudio.data.LibraryRepository
+import com.openbibleaudio.openbibleaudio.data.SettingsRepository
+import com.openbibleaudio.openbibleaudio.data.db.PodcastDao
 import com.openbibleaudio.openbibleaudio.library.ImportController
+import com.openbibleaudio.openbibleaudio.plans.PlanRepository
+import com.openbibleaudio.openbibleaudio.podcasts.PodcastStorage
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
@@ -15,4 +19,8 @@ import dagger.hilt.components.SingletonComponent
 interface DebugEntryPoint {
     fun importController(): ImportController
     fun libraryRepository(): LibraryRepository
+    fun planRepository(): PlanRepository
+    fun settingsRepository(): SettingsRepository
+    fun podcastDao(): PodcastDao
+    fun podcastStorage(): PodcastStorage
 }

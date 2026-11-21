@@ -12,6 +12,7 @@ import androidx.media3.session.SessionToken
 import com.openbibleaudio.core.model.ChapterRef
 import com.openbibleaudio.core.model.MediaId
 import com.openbibleaudio.openbibleaudio.playback.PlaybackService
+import com.openbibleaudio.openbibleaudio.plans.PlanRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.delay
@@ -35,8 +36,14 @@ data class PlayerUiState(
     val hasPrevious: Boolean = false,
     val hasNext: Boolean = false,
     val error: String? = null,
+    /** A plan day's queue has ended: offer "Play Day N next" (spec 0003 §6.2). */
+    val nextPlanDay: NextPlanDay? = null,
 ) {
     val hasItem: Boolean get() = mediaId != null
+}
+
+data class NextPlanDay(val enrollmentId: Long, val day: Int) {
+    val mediaId: String get() = MediaId.PlanDay(enrollmentId, day).format()
 }
 
 /**
@@ -44,10 +51,17 @@ data class PlayerUiState(
  * spec 0002 §8). Activity-scoped so the mini-player and Now Playing share one controller.
  */
 @HiltViewModel
-class PlayerViewModel @Inject constructor(@ApplicationContext private val context: Context) : ViewModel() {
+class PlayerViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val plans: PlanRepository,
+) : ViewModel() {
     private val _state = MutableStateFlow(PlayerUiState())
     val state: StateFlow<PlayerUiState> = _state.asStateFlow()
     private var controller: MediaController? = null
+
+    /** The ended plan item we last looked up a next day for, so it's looked up once. */
+    private var endedPlanItem: String? = null
+    private var nextPlanDay: NextPlanDay? = null
 
     init {
         viewModelScope.launch {
@@ -80,7 +94,35 @@ class PlayerViewModel @Inject constructor(@ApplicationContext private val contex
             hasPrevious = item != null,
             hasNext = c.hasNextMediaItem(),
             error = c.playerError?.message,
+            nextPlanDay = nextPlanDay.takeIf { c.playbackState == Player.STATE_ENDED },
         )
+        lookUpNextPlanDay(c)
+    }
+
+    /** When a plan day's queue ends, finds the next open day after it (regardless of the calendar). */
+    private fun lookUpNextPlanDay(c: MediaController) {
+        val item = c.currentMediaItem
+        val id = item?.let { MediaId.parse(it.mediaId) } as? MediaId.PlanItem
+        val ended = c.playbackState == Player.STATE_ENDED && id != null && !c.hasNextMediaItem()
+        if (!ended) {
+            endedPlanItem = null
+            nextPlanDay = null
+            return
+        }
+        if (endedPlanItem == item.mediaId) return
+        endedPlanItem = item.mediaId
+        viewModelScope.launch {
+            nextPlanDay = plans.nextDayAfter(id.enrollmentId, id.day)?.let { NextPlanDay(id.enrollmentId, it) }
+            update()
+        }
+    }
+
+    /** Plays a browse-tree ID (a plan day or `plan/{e}/today`); the service builds the queue. */
+    fun playMediaId(mediaId: String) {
+        val c = controller ?: return
+        c.setMediaItems(listOf(MediaItem.Builder().setMediaId(mediaId).build()))
+        c.prepare()
+        c.play()
     }
 
     /** Sends only the chapter ID; the service builds the queue, exactly as for Auto (§7.5). */

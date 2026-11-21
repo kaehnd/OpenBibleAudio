@@ -1,0 +1,806 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 2,
+    "identityHash": "6a2bcdc659d45dd75283b31fe7ee2c02",
+    "entities": [
+      {
+        "tableName": "bible_version",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`versionId` TEXT NOT NULL, `abbreviation` TEXT NOT NULL, `name` TEXT NOT NULL, `language` TEXT NOT NULL, `versification` TEXT NOT NULL, `narrator` TEXT, `attribution` TEXT, `state` TEXT NOT NULL, `totalBytes` INTEGER NOT NULL, `importedAt` INTEGER, `sourceTreeUri` TEXT, `moveSource` INTEGER NOT NULL, `failureReason` TEXT, PRIMARY KEY(`versionId`))",
+        "fields": [
+          {
+            "fieldPath": "versionId",
+            "columnName": "versionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "abbreviation",
+            "columnName": "abbreviation",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "language",
+            "columnName": "language",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "versification",
+            "columnName": "versification",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "narrator",
+            "columnName": "narrator",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "attribution",
+            "columnName": "attribution",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalBytes",
+            "columnName": "totalBytes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "importedAt",
+            "columnName": "importedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "sourceTreeUri",
+            "columnName": "sourceTreeUri",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "moveSource",
+            "columnName": "moveSource",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "failureReason",
+            "columnName": "failureReason",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "versionId"
+          ]
+        }
+      },
+      {
+        "tableName": "audio_file",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `versionId` TEXT NOT NULL, `path` TEXT NOT NULL, `sizeBytes` INTEGER NOT NULL, `sha256` TEXT, `durationMs` INTEGER, `imported` INTEGER NOT NULL, FOREIGN KEY(`versionId`) REFERENCES `bible_version`(`versionId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "versionId",
+            "columnName": "versionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "path",
+            "columnName": "path",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sizeBytes",
+            "columnName": "sizeBytes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sha256",
+            "columnName": "sha256",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "durationMs",
+            "columnName": "durationMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "imported",
+            "columnName": "imported",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_audio_file_versionId_path",
+            "unique": true,
+            "columnNames": [
+              "versionId",
+              "path"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_audio_file_versionId_path` ON `${TABLE_NAME}` (`versionId`, `path`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "bible_version",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "versionId"
+            ],
+            "referencedColumns": [
+              "versionId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "chapter_audio",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`versionId` TEXT NOT NULL, `book` TEXT NOT NULL, `chapter` INTEGER NOT NULL, `fileId` INTEGER NOT NULL, `startMs` INTEGER NOT NULL, `endMs` INTEGER, `durationMs` INTEGER, PRIMARY KEY(`versionId`, `book`, `chapter`), FOREIGN KEY(`versionId`) REFERENCES `bible_version`(`versionId`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`fileId`) REFERENCES `audio_file`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "versionId",
+            "columnName": "versionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "book",
+            "columnName": "book",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chapter",
+            "columnName": "chapter",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fileId",
+            "columnName": "fileId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startMs",
+            "columnName": "startMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endMs",
+            "columnName": "endMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "durationMs",
+            "columnName": "durationMs",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "versionId",
+            "book",
+            "chapter"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_chapter_audio_fileId",
+            "unique": false,
+            "columnNames": [
+              "fileId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_chapter_audio_fileId` ON `${TABLE_NAME}` (`fileId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "bible_version",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "versionId"
+            ],
+            "referencedColumns": [
+              "versionId"
+            ]
+          },
+          {
+            "table": "audio_file",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "fileId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "chapter_completion",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `versionId` TEXT NOT NULL, `book` TEXT NOT NULL, `chapter` INTEGER NOT NULL, `completedAt` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "versionId",
+            "columnName": "versionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "book",
+            "columnName": "book",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chapter",
+            "columnName": "chapter",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completedAt",
+            "columnName": "completedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_chapter_completion_versionId_book_chapter",
+            "unique": false,
+            "columnNames": [
+              "versionId",
+              "book",
+              "chapter"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_chapter_completion_versionId_book_chapter` ON `${TABLE_NAME}` (`versionId`, `book`, `chapter`)"
+          }
+        ]
+      },
+      {
+        "tableName": "plan",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `version` INTEGER NOT NULL, `name` TEXT NOT NULL, `definitionJson` TEXT NOT NULL, `importedAt` INTEGER NOT NULL, PRIMARY KEY(`id`, `version`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "version",
+            "columnName": "version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "definitionJson",
+            "columnName": "definitionJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "importedAt",
+            "columnName": "importedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id",
+            "version"
+          ]
+        }
+      },
+      {
+        "tableName": "enrollment",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `planId` TEXT NOT NULL, `planVersion` INTEGER NOT NULL, `versionId` TEXT, `startDate` TEXT NOT NULL, `podcastCycle` INTEGER, `downloadMode` TEXT NOT NULL, `rollingDays` INTEGER NOT NULL, `state` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, FOREIGN KEY(`planId`, `planVersion`) REFERENCES `plan`(`id`, `version`) ON UPDATE NO ACTION ON DELETE NO ACTION )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "planId",
+            "columnName": "planId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "planVersion",
+            "columnName": "planVersion",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "versionId",
+            "columnName": "versionId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "startDate",
+            "columnName": "startDate",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "podcastCycle",
+            "columnName": "podcastCycle",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "downloadMode",
+            "columnName": "downloadMode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rollingDays",
+            "columnName": "rollingDays",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_enrollment_planId_planVersion",
+            "unique": false,
+            "columnNames": [
+              "planId",
+              "planVersion"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_enrollment_planId_planVersion` ON `${TABLE_NAME}` (`planId`, `planVersion`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "plan",
+            "onDelete": "NO ACTION",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "planId",
+              "planVersion"
+            ],
+            "referencedColumns": [
+              "id",
+              "version"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "enrollment_day",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`enrollmentId` INTEGER NOT NULL, `day` INTEGER NOT NULL, `status` TEXT NOT NULL, `completedAt` INTEGER, PRIMARY KEY(`enrollmentId`, `day`), FOREIGN KEY(`enrollmentId`) REFERENCES `enrollment`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "enrollmentId",
+            "columnName": "enrollmentId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "day",
+            "columnName": "day",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completedAt",
+            "columnName": "completedAt",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "enrollmentId",
+            "day"
+          ]
+        },
+        "foreignKeys": [
+          {
+            "table": "enrollment",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "enrollmentId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "enrollment_item_completion",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`enrollmentId` INTEGER NOT NULL, `day` INTEGER NOT NULL, `itemKey` TEXT NOT NULL, `completedAt` INTEGER NOT NULL, PRIMARY KEY(`enrollmentId`, `day`, `itemKey`), FOREIGN KEY(`enrollmentId`) REFERENCES `enrollment`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "enrollmentId",
+            "columnName": "enrollmentId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "day",
+            "columnName": "day",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "itemKey",
+            "columnName": "itemKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completedAt",
+            "columnName": "completedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "enrollmentId",
+            "day",
+            "itemKey"
+          ]
+        },
+        "foreignKeys": [
+          {
+            "table": "enrollment",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "enrollmentId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "podcast_feed",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`feedId` TEXT NOT NULL, `url` TEXT NOT NULL, `title` TEXT, `etag` TEXT, `lastModified` TEXT, `lastFetchedAt` INTEGER, `lastError` TEXT, PRIMARY KEY(`feedId`))",
+        "fields": [
+          {
+            "fieldPath": "feedId",
+            "columnName": "feedId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "url",
+            "columnName": "url",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "etag",
+            "columnName": "etag",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "lastModified",
+            "columnName": "lastModified",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "lastFetchedAt",
+            "columnName": "lastFetchedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastError",
+            "columnName": "lastError",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "feedId"
+          ]
+        }
+      },
+      {
+        "tableName": "podcast_episode",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`feedId` TEXT NOT NULL, `guidHash` TEXT NOT NULL, `guid` TEXT NOT NULL, `title` TEXT NOT NULL, `pubDate` INTEGER NOT NULL, `enclosureUrl` TEXT NOT NULL, `enclosureLength` INTEGER, `durationMs` INTEGER, `episodeType` TEXT, `cycle` INTEGER, `matchedDay` INTEGER, `matchSource` TEXT, `inFeed` INTEGER NOT NULL, `downloadState` TEXT NOT NULL, `localPath` TEXT, `downloadedBytes` INTEGER, `downloadError` TEXT, `positionMs` INTEGER NOT NULL, `lastPlayedAt` INTEGER, `completedAt` INTEGER, PRIMARY KEY(`feedId`, `guidHash`), FOREIGN KEY(`feedId`) REFERENCES `podcast_feed`(`feedId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "feedId",
+            "columnName": "feedId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "guidHash",
+            "columnName": "guidHash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "guid",
+            "columnName": "guid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pubDate",
+            "columnName": "pubDate",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "enclosureUrl",
+            "columnName": "enclosureUrl",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "enclosureLength",
+            "columnName": "enclosureLength",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "durationMs",
+            "columnName": "durationMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "episodeType",
+            "columnName": "episodeType",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "cycle",
+            "columnName": "cycle",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "matchedDay",
+            "columnName": "matchedDay",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "matchSource",
+            "columnName": "matchSource",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "inFeed",
+            "columnName": "inFeed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "downloadState",
+            "columnName": "downloadState",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "localPath",
+            "columnName": "localPath",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "downloadedBytes",
+            "columnName": "downloadedBytes",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "downloadError",
+            "columnName": "downloadError",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "positionMs",
+            "columnName": "positionMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastPlayedAt",
+            "columnName": "lastPlayedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "completedAt",
+            "columnName": "completedAt",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "feedId",
+            "guidHash"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_podcast_episode_feedId_cycle_matchedDay",
+            "unique": false,
+            "columnNames": [
+              "feedId",
+              "cycle",
+              "matchedDay"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_podcast_episode_feedId_cycle_matchedDay` ON `${TABLE_NAME}` (`feedId`, `cycle`, `matchedDay`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "podcast_feed",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "feedId"
+            ],
+            "referencedColumns": [
+              "feedId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "manual_pin",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`enrollmentId` INTEGER NOT NULL, `day` INTEGER NOT NULL, `feedId` TEXT NOT NULL, `guidHash` TEXT NOT NULL, PRIMARY KEY(`enrollmentId`, `day`), FOREIGN KEY(`enrollmentId`) REFERENCES `enrollment`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "enrollmentId",
+            "columnName": "enrollmentId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "day",
+            "columnName": "day",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "feedId",
+            "columnName": "feedId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "guidHash",
+            "columnName": "guidHash",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "enrollmentId",
+            "day"
+          ]
+        },
+        "foreignKeys": [
+          {
+            "table": "enrollment",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "enrollmentId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '6a2bcdc659d45dd75283b31fe7ee2c02')"
+    ]
+  }
+}

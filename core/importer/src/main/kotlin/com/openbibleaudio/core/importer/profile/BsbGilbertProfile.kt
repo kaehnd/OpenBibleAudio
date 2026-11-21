@@ -9,13 +9,34 @@ import com.openbibleaudio.core.model.pack.PackBible
  * USFM codes in mixed case except `Tts` (Titus).
  */
 object BsbGilbertProfile {
-    val profile = LayoutProfile(
+    val profile = OpenBibleBsb.profile(
         id = "bsb-gilbert",
         description = "Berean Standard Bible, Gilbert narration (openbible.com/audio/gilbert)",
-        pathPattern = Regex("""^BSB_(?<order>\d{2})_(?<book>[1-3]?[A-Za-z]{2,3})_(?<chapter>\d{3})_G\.mp3$"""),
+        fileSuffix = "_G",
+    )
+}
+
+/**
+ * Berean Standard Bible, Souer narration, as downloaded from openbible.com/audio/souer: the
+ * Gilbert layout without the narrator suffix, `BSB_{order:2}_{abbr}_{chapter:3}.mp3`.
+ */
+object BsbSouerProfile {
+    val profile = OpenBibleBsb.profile(
+        id = "bsb-souer",
+        description = "Berean Standard Bible, Souer narration (openbible.com/audio/souer)",
+        fileSuffix = "",
+    )
+}
+
+/** The openbible.com BSB recordings share one naming scheme, differing only by a file suffix. */
+internal object OpenBibleBsb {
+    fun profile(id: String, description: String, fileSuffix: String) = LayoutProfile(
+        id = id,
+        description = description,
+        pathPattern = Regex("""^BSB_(?<order>\d{2})_(?<book>[1-3]?[A-Za-z]{2,3})_(?<chapter>\d{3})${Regex.escape(fileSuffix)}\.mp3$"""),
         books = BookAliases.usfm() + mapOf("TTS" to Book.TITUS),
         bibleDefaults = PackBible(
-            versionId = "bsb-gilbert",
+            versionId = id, // translation + recording (spec 0001 §5)
             abbreviation = "BSB",
             name = "Berean Standard Bible",
             language = "en",

@@ -1,12 +1,17 @@
 package com.openbibleaudio.openbibleaudio.playback
 
+import com.openbibleaudio.openbibleaudio.podcasts.EpisodeBrowseState
 import com.openbibleaudio.core.model.Book
 import com.openbibleaudio.core.model.ChapterRef
 import com.openbibleaudio.core.model.MediaId
 import com.openbibleaudio.core.model.Testament
+import com.openbibleaudio.core.model.plan.Reading
+import com.openbibleaudio.openbibleaudio.plans.DayStatus
+import com.openbibleaudio.openbibleaudio.plans.PlanPosition
 import org.junit.Test
 import java.util.TreeSet
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -18,13 +23,34 @@ private fun snapshot(vararg versions: Pair<String, Set<ChapterRef>>) = LibrarySn
     chapters = versions.associate { it.first to TreeSet(it.second) },
 )
 
-private object Titles : BrowseTitles {
+/** Plain-text titles; also used by PlanBrowseTreeTest. */
+internal object Titles : BrowseTitles {
     override val bible = "Bible"
     override val noLibrary = "No Bible"
     override fun testament(t: Testament) = t.name
     override fun book(b: Book) = b.usfm
     override fun chapterGroup(b: Book, from: Int, to: Int) = "${b.usfm} $from-$to"
     override fun version(v: VersionInfo) = v.abbreviation
+    override val today = "Today"
+    override val plans = "Plans"
+    override val noPlans = "No plans"
+    override fun enrollmentToday(planName: String, day: Int, upNext: Boolean) = "$planName · Day $day" + if (upNext) " (up next)" else ""
+    override fun enrollmentSubtitle(position: PlanPosition) = when {
+        position.currentDay == null -> "Finished"
+        position.behind > 0 -> "Day ${position.currentDay} · ${position.behind} behind"
+        position.ahead > 0 -> "Day ${position.currentDay} · ${position.ahead} ahead"
+        else -> "Day ${position.currentDay} of ${position.dayCount}"
+    }
+    override fun dayGroup(from: Int, to: Int) = "Days $from-$to"
+    override fun day(day: Int, status: DayStatus) = "Day $day" + when (status) {
+        DayStatus.COMPLETE -> " ✓"
+        DayStatus.SKIPPED -> " skipped"
+        DayStatus.IN_PROGRESS -> " started"
+        DayStatus.PENDING -> ""
+    }
+    override fun reading(reading: Reading) = "${reading.book.usfm} ${reading.from}" + (reading.to?.let { "-$it" } ?: "")
+    override fun continueItem(title: String) = "Continue: $title"
+    override fun withEpisode(readings: String?, state: EpisodeBrowseState) = "$readings · $state"
 }
 
 class QueueBuilderTest {
@@ -74,8 +100,8 @@ class BrowseTreeTest {
     }
 
     @Test
-    fun rootHasOnlyBible() {
-        assertEquals(listOf("bible"), tree.children(MediaId.Root, snapshot("bsb" to all()))!!.map { it.id })
+    fun rootIsTodayBiblePlans() {
+        assertEquals(listOf("today", "bible", "plan"), tree.children(MediaId.Root, snapshot("bsb" to all()))!!.map { it.id })
     }
 
     @Test
@@ -177,6 +203,21 @@ class PlaybackRulesTest {
     }
 }
 
+class ControllerAccessTest {
+    /** In the car, Gemini's package wasn't visible, so Media3 saw it as untrusted (2026-11-21). */
+    @Test
+    fun assistantAndAutoGetFullAccessEvenWhenUntrusted() {
+        assertTrue(ControllerAccess.fullAccess("com.google.android.googlequicksearchbox", trusted = false))
+        assertTrue(ControllerAccess.fullAccess("com.google.android.projection.gearhead", trusted = false))
+    }
+
+    @Test
+    fun othersFollowTheTrustCheck() {
+        assertTrue(ControllerAccess.fullAccess("com.example.player", trusted = true))
+        assertFalse(ControllerAccess.fullAccess("com.example.player", trusted = false))
+    }
+}
+
 class VoiceSearchTest {
     private val snap = snapshot("bsb" to all(), "nt" to all().filter { it.book.testament == Testament.NEW }.toSet())
 
@@ -196,6 +237,26 @@ class VoiceSearchTest {
     @Test
     fun emptyQueryResumes() {
         assertEquals(VoiceRequest.Resume, VoiceSearch.resolve("", snap, null))
+    }
+
+    /** Gemini in Android Auto passes the whole utterance, app name included (DHU, 2026-11-21). */
+    @Test
+    fun theAppsNameIsStripped() {
+        assertEquals("", VoiceSearch.stripAppName("Open Bible audio"))
+        assertEquals("", VoiceSearch.stripAppName("OpenBibleAudio"))
+        assertEquals("", VoiceSearch.stripAppName("the Open Bible Audio app"))
+        assertEquals("Psalm 23", VoiceSearch.stripAppName("Psalm 23 on Open Bible Audio"))
+        assertEquals("today's reading", VoiceSearch.stripAppName("today's reading on open bible audio"))
+        assertEquals("John 3", VoiceSearch.stripAppName("John 3 in OpenBibleAudio"))
+        // Not the app's name: left alone.
+        assertEquals("open bible", VoiceSearch.stripAppName("open bible"))
+        assertEquals("Psalm 23", VoiceSearch.stripAppName("Psalm 23"))
+
+        assertEquals(VoiceRequest.Resume, VoiceSearch.resolve(VoiceSearch.stripAppName("Open Bible audio"), snap, null))
+        assertEquals(
+            VoiceRequest.Play(MediaId.Chapter("bsb", ChapterRef(Book.PSALMS, 23))),
+            VoiceSearch.resolve(VoiceSearch.stripAppName("Psalm 23 on Open Bible Audio"), snap, null),
+        )
     }
 
     @Test

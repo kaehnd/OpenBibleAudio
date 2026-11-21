@@ -1,5 +1,6 @@
 package com.openbibleaudio.openbibleaudio.ui.browse
 
+import com.openbibleaudio.openbibleaudio.podcasts.EpisodeDownloads
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.openbibleaudio.openbibleaudio.data.LibraryRepository
@@ -23,6 +24,7 @@ class BrowseViewModel @Inject constructor(library: LibraryRepository) : ViewMode
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val repository: SettingsRepository,
+    private val downloads: EpisodeDownloads,
     library: LibraryRepository,
 ) : ViewModel() {
     val settings: StateFlow<Settings?> = repository.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
@@ -32,4 +34,22 @@ class SettingsViewModel @Inject constructor(
     fun setSeekBack(ms: Long) = viewModelScope.launch { repository.setSeekBackMs(ms) }
     fun setSeekForward(ms: Long) = viewModelScope.launch { repository.setSeekForwardMs(ms) }
     fun setVerifyHashes(verify: Boolean) = viewModelScope.launch { repository.setVerifyHashesOnImport(verify) }
+    fun setContinueToNextDay(value: Boolean) = viewModelScope.launch { repository.setContinueToNextDay(value) }
+
+    // Podcasts (spec 0003 §5, §9.3)
+    fun setUnmeteredOnly(value: Boolean) = viewModelScope.launch {
+        repository.setPodcastUnmeteredOnly(value)
+        // Re-enqueue with the new network constraint (spec 0003 §8.2).
+        downloads.startAll(replace = true)
+    }
+    fun setRetentionDays(days: Int) = viewModelScope.launch {
+        repository.setPodcastRetentionDays(days)
+        downloads.applyRetention()
+    }
+    fun setKeepPlayed(value: Boolean) = viewModelScope.launch {
+        repository.setKeepPlayedEpisodes(value)
+        if (!value) downloads.applyRetention()
+    }
+    fun setAllowStreaming(value: Boolean) = viewModelScope.launch { repository.setAllowEpisodeStreaming(value) }
+    fun setPodcastSpeed(speed: Float) = viewModelScope.launch { repository.setPodcastSpeed(speed) }
 }

@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">OpenBibleAudio</string>
+    <string name="app_name">Open Bible Audio</string>
 
     <!-- Book display names in canonical order (Book enum order, AD-11). -->
     <string-array name="book_names">
@@ -78,6 +78,203 @@
     <string name="new_testament">New Testament</string>
     <string name="browse_chapter_group">%1$s %2$d–%3$d</string>
     <string name="browse_version">%1$s — %2$s</string>
+
+    <!-- Plans in the Auto browse tree (spec 0003 §9.1) -->
+    <string name="browse_today">Today</string>
+    <string name="browse_plans">Plans</string>
+    <string name="browse_no_plans">No plans yet. Add one on your phone.</string>
+    <string name="plan_today">%1$s · Day %2$d</string>
+    <string name="plan_today_up_next">%1$s · Day %2$d (up next)</string>
+    <string name="plan_day">Day %1$d</string>
+    <string name="plan_day_complete">Day %1$d ✓</string>
+    <string name="plan_day_skipped">Day %1$d · skipped</string>
+    <string name="plan_day_started">Day %1$d · started</string>
+    <string name="plan_day_group">Days %1$d–%2$d</string>
+    <string name="plan_day_of">Day %1$d of %2$d</string>
+    <plurals name="plan_behind">
+        <item quantity="one">Day %2$d · %1$d day behind</item>
+        <item quantity="other">Day %2$d · %1$d days behind</item>
+    </plurals>
+    <plurals name="plan_ahead">
+        <item quantity="one">Day %2$d · %1$d day ahead</item>
+        <item quantity="other">Day %2$d · %1$d days ahead</item>
+    </plurals>
+    <string name="plan_finished">Finished</string>
+    <string name="plan_reading_chapter">%1$s %2$d</string>
+    <string name="plan_reading_range">%1$s %2$d–%3$d</string>
+    <string name="plan_continue">Continue: %1$s</string>
+    <string name="plan_queue_album">%1$s · Day %2$d</string>
+    <string name="error_plan_missing">That plan is no longer on this phone.</string>
+    <string name="error_plan_finished">%1$s is finished. Restart it on your phone to listen again.</string>
+    <string name="error_plan_day_empty">None of Day %1$d\'s chapters are in %2$s.</string>
+
+    <!-- Plans on the phone (spec 0003 §9.3) -->
+    <string name="nav_library">Library</string>
+    <string name="nav_plans">Plans</string>
+    <string name="plans_import">Import plan</string>
+    <string name="plans_empty_title">No reading plans yet</string>
+    <string name="plans_empty_body">Import a reading plan file (.json), such as one made with the OpenBibleAudio importer. Then enroll to follow it here and in Android Auto.</string>
+    <string name="plans_yours">Your plans</string>
+    <string name="plans_imported">Imported plans</string>
+    <string name="plans_enroll">Enroll</string>
+    <string name="plans_days">%1$d days</string>
+    <string name="plan_card_finished">Finished · all %1$d days done</string>
+    <string name="plan_card_keep_going">Today\'s reading done ✓ — keep going with Day %1$d</string>
+    <string name="plan_card_done">%1$d of %2$d days done</string>
+    <string name="plan_paused">Paused</string>
+    <string name="plan_play_today">Play today</string>
+    <string name="plan_play_day">Play Day %1$d</string>
+    <string name="plan_importing">Reading the plan…</string>
+    <string name="plan_import_problem">Can\'t import this plan</string>
+    <string name="plan_already_imported">%1$s (version %2$d) is already imported.</string>
+    <plurals name="plan_invalid">
+        <item quantity="one">%1$d problem found:</item>
+        <item quantity="other">%1$d problems found:</item>
+    </plurals>
+    <string name="enroll_title">Enroll in %1$s</string>
+    <string name="enroll_version">Bible version</string>
+    <string name="enroll_version_default">Whichever version is playing</string>
+    <string name="enroll_start">Start date: %1$s</string>
+    <string name="enroll_start_note">The start date only sets how far behind or ahead you are. You can always keep going to the next day.</string>
+    <string name="enroll_confirm">Enroll</string>
+    <string name="enroll_podcast">Podcast episodes</string>
+    <string name="episodes_channel_name">Podcast downloads</string>
+    <plurals name="plan_card_episodes">
+        <item quantity="one">%1$d / %2$d episode downloaded</item>
+        <item quantity="other">%1$d / %2$d episodes downloaded</item>
+    </plurals>
+    <string name="storage">Storage</string>
+    <plurals name="storage_total">
+        <item quantity="one">%1$d downloaded episode · %2$s</item>
+        <item quantity="other">%1$d downloaded episodes · %2$s</item>
+    </plurals>
+    <plurals name="storage_enrollment">
+        <item quantity="one">%1$d episode · %2$s</item>
+        <item quantity="other">%1$d episodes · %2$s</item>
+    </plurals>
+    <string name="storage_none">No plan with a podcast yet.</string>
+    <plurals name="storage_delete_played">
+        <item quantity="one">Delete %1$d played episode</item>
+        <item quantity="other">Delete %1$d played episodes</item>
+    </plurals>
+    <string name="storage_delete_all">Delete all downloaded episodes</string>
+    <string name="storage_confirm_played">Delete played episodes?</string>
+    <string name="storage_confirm_all">Delete all downloaded episodes?</string>
+    <string name="storage_note">Where you stopped in each episode is kept. Plans set to download episodes fetch upcoming ones again.</string>
+    <string name="settings_podcasts">Podcasts</string>
+    <string name="settings_unmetered_only">Download on Wi-Fi only</string>
+    <string name="settings_unmetered_only_summary">Episodes wait for an unmetered network.</string>
+    <string name="settings_retention">Keep played episodes for</string>
+    <string name="settings_retention_now">Delete right away</string>
+    <plurals name="settings_days">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
+    <string name="settings_keep_played">Keep played episodes</string>
+    <string name="settings_keep_played_summary">Never delete an episode after it\'s played.</string>
+    <string name="settings_streaming">Stream episodes that aren\'t downloaded</string>
+    <string name="settings_streaming_summary">Uses mobile data while you listen. Off: a day plays its readings only.</string>
+    <string name="settings_podcast_speed">Podcast speed</string>
+    <string name="settings_speed">%1$sx</string>
+    <plurals name="plan_episodes_line">
+        <item quantity="one">%1$d / %2$d episode downloaded · %3$s</item>
+        <item quantity="other">%1$d / %2$d episodes downloaded · %3$s</item>
+    </plurals>
+    <string name="plan_download_mode">Download mode</string>
+    <string name="download_mode_all">Download all episodes</string>
+    <plurals name="download_mode_rolling">
+        <item quantity="one">Keep the next day downloaded</item>
+        <item quantity="other">Keep the next %1$d days downloaded</item>
+    </plurals>
+    <string name="download_mode_off">Don\'t download automatically</string>
+    <string name="download_mode_note">Switching doesn\'t delete anything. Played episodes are tidied up as usual.</string>
+    <string name="episode_download">Download episode</string>
+    <string name="episode_delete">Delete episode</string>
+    <string name="episode_pin">Choose episode…</string>
+    <string name="episode_unpin">Use the matched episode</string>
+    <string name="episode_pin_title">Episode for Day %1$d</string>
+    <string name="episode_pin_none">No episodes to choose from yet.</string>
+    <string name="episode_pin_show_all">Show all</string>
+    <string name="episode_line_none">No episode matched. Choose one from the menu.</string>
+    <string name="episode_line_not_downloaded">Episode not downloaded</string>
+    <string name="episode_line_queued">Episode waiting to download</string>
+    <string name="episode_line_downloading">Episode downloading…</string>
+    <string name="episode_line_downloaded">Episode downloaded</string>
+    <string name="episode_line_failed">Episode couldn\'t be downloaded: %1$s</string>
+    <string name="episode_line_pinned">%1$s · chosen: %2$s</string>
+    <string name="episode_line_duplicated">%1$s · uploaded more than once, using the latest</string>
+    <string name="episode_state_downloaded">Episode ✓</string>
+    <string name="episode_state_streaming">Episode streams</string>
+    <string name="episode_state_not_downloaded">Episode not downloaded</string>
+    <string name="episode_state_gone">Episode no longer available</string>
+    <string name="episode_state_none">No episode for this day</string>
+    <string name="readings_with_episode">%1$s · %2$s</string>
+    <string name="episode_item_title">Day %1$d · %2$s</string>
+    <string name="error_episode_failed">This episode couldn\'t be played.</string>
+    <string name="episode_streaming">Streaming · %1$s</string>
+    <string name="enroll_download">Download episodes</string>
+    <plurals name="enroll_download_all">
+        <item quantity="one">The episode — %2$s</item>
+        <item quantity="other">All %1$d episodes — %2$s</item>
+    </plurals>
+    <plurals name="enroll_download_rolling">
+        <item quantity="one">Next day — about %2$s</item>
+        <item quantity="other">Next %1$d days — about %2$s</item>
+    </plurals>
+    <string name="enroll_download_off">Don\'t download automatically</string>
+    <string name="enroll_download_free">%1$s free on this device</string>
+    <string name="enroll_download_no_space">Not enough free space for all of them. Downloads stop when storage runs low.</string>
+    <string name="enroll_download_past">This is an older season. It can drop out of the feed, so downloading all of it now is recommended.</string>
+    <string name="episodes_notification_title">Downloading podcast episodes</string>
+    <string name="episodes_notification_progress">%1$d / %2$d</string>
+    <string name="enroll_podcast_checking">Checking the podcast feed…</string>
+    <string name="enroll_podcast_failed">Couldn\'t reach the podcast feed (%1$s). You can enroll now. Episodes are matched once the feed can be reached.</string>
+    <string name="enroll_podcast_stale">Couldn\'t refresh the feed just now (%1$s), so this list may be out of date.</string>
+    <string name="enroll_podcast_none">No episodes in the feed match this plan yet.</string>
+    <plurals name="enroll_podcast_partial">
+        <item quantity="one">Only %1$d of %2$d episodes is available for %3$s.</item>
+        <item quantity="other">Only %1$d of %2$d episodes are available for %3$s.</item>
+    </plurals>
+    <string name="cycle_season">Season %1$d</string>
+    <string name="cycle_season_year">Season %1$d · %2$d</string>
+    <string name="cycle_generic">Cycle %1$d</string>
+    <string name="cycle_generic_year">Cycle %1$d · %2$d</string>
+    <string name="cycle_coverage">%1$d / %2$d so far</string>
+    <plurals name="cycle_coverage_all">
+        <item quantity="one">%1$d episode, all available</item>
+        <item quantity="other">all %1$d available</item>
+    </plurals>
+    <string name="plan_skip_to_today">Skip to today</string>
+    <string name="plan_match_schedule">Match schedule to my progress</string>
+    <string name="plan_start_from">Start from day…</string>
+    <string name="plan_start_from_title">Start from which day?</string>
+    <string name="plan_start_from_body">Days before it are marked done. That day and the ones after it are marked not done, and it becomes today\'s day.</string>
+    <string name="plan_start_from_confirm">Start from day %1$d</string>
+    <string name="plan_start_day">Start at day</string>
+    <string name="plan_start_day_range">Enter a day from 1 to %1$d</string>
+    <plurals name="plan_start_day_note">
+        <item quantity="one">Day 1 is marked done</item>
+        <item quantity="other">Days 1–%1$d are marked done</item>
+    </plurals>
+    <string name="plan_restart">Restart plan</string>
+    <string name="plan_restart_title">Restart %1$s?</string>
+    <string name="plan_restart_body">Every day goes back to not done.</string>
+    <string name="plan_pause">Pause plan</string>
+    <string name="plan_resume">Resume plan</string>
+    <string name="plan_archive">Archive</string>
+    <string name="plan_delete">Delete</string>
+    <string name="plan_delete_title">Delete %1$s?</string>
+    <string name="plan_delete_body">Your progress in this plan will be lost.</string>
+    <string name="plan_mark_complete">Mark complete</string>
+    <string name="plan_mark_not_done">Mark not done</string>
+    <string name="plan_status_complete">Done</string>
+    <string name="plan_status_skipped">Skipped</string>
+    <string name="plan_status_started">Started</string>
+    <string name="plan_status_current">Current day</string>
+    <string name="play_next_day">Play Day %1$d next</string>
+    <string name="settings_plans">Reading plans</string>
+    <string name="settings_continue_next_day">Continue to the next day</string>
+    <string name="settings_continue_next_day_summary">When a day ends, keep playing the next one instead of stopping.</string>
 
     <!-- Playback -->
     <string name="seek_back">Back %1$d seconds</string>

@@ -26,4 +26,5 @@ rootProject.name = "OpenBibleAudio"
 include(":app")
 include(":core:model")
 include(":core:importer")
+include(":core:podcast")
 include(":tools:importer-cli")

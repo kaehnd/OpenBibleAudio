@@ -2,7 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- AD-14: only what's needed. No INTERNET (Phase 3) and no storage permissions: SAF only. -->
+    <!-- AD-14: only what's needed. INTERNET is for plan-linked podcast feeds and episodes only
+         (spec 0003 §11). No storage permissions: SAF only. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
@@ -56,6 +58,14 @@
                 <action android:name="android.intent.action.MEDIA_BUTTON" />
             </intent-filter>
         </receiver>
+
+        <!-- Generated chapter-number artwork for Auto's grid. Exported so Auto can fetch it; it
+             serves only generated number images (no user data) and is read-only (spec 0002 §7.4). -->
+        <provider
+            android:name=".playback.ChapterArtProvider"
+            android:authorities="${applicationId}.art"
+            android:exported="true"
+            tools:ignore="ExportedContentProvider" />
 
         <meta-data
             android:name="com.google.android.gms.car.application"
