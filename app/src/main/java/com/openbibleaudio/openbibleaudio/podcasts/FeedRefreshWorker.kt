@@ -18,16 +18,23 @@ import java.util.concurrent.TimeUnit
 /**
  * Daily refresh of every active enrollment's podcast feed (spec 0003 §7.1). Needs a network
  * connection. A feed fetched within the last 12 h (e.g. when the Plans screen opened) is skipped.
+ * It then tops up downloads (§8.1) and runs the daily retention pass (§8.4).
  */
 @HiltWorker
 class FeedRefreshWorker @AssistedInject constructor(
     @Assisted context: Context,
     @Assisted params: WorkerParameters,
     private val podcasts: PodcastRepository,
+    private val downloads: EpisodeDownloads,
 ) : CoroutineWorker(context, params) {
 
-    override suspend fun doWork(): Result =
-        if (podcasts.refreshActive()) Result.success() else Result.retry()
+    override suspend fun doWork(): Result {
+        val ok = podcasts.refreshActive()
+        // Downloads use the stored snapshot, so they go ahead even when a refresh failed.
+        downloads.startAll()
+        downloads.applyRetention()
+        return if (ok) Result.success() else Result.retry()
+    }
 
     companion object {
         const val UNIQUE_NAME = "podcast-feed-refresh"

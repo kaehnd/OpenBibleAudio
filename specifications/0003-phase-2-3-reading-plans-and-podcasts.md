@@ -408,7 +408,14 @@ Picking one writes `manual_pin`. Unpin goes back to automatic.
   4. `setProgress` about every 500 ms.
 - Errors: IO or HTTP 5xx → `Result.retry()` (exponential backoff), and the `.part` is kept for
   resuming. HTTP 404/410 → that episode is `FAILED` ("No longer available from the publisher") and
-  the worker moves on to the next one. Disk full → stop and set `FAILED` with a message.
+  the worker moves on to the next one. `FAILED` episodes aren't queued again automatically. Disk
+  full → stop, and record the message with `downloadState = NONE`, not `FAILED`, so the next
+  trigger tries again once space is freed.
+- The `If-Range` validator (ETag, or Last-Modified when the ETag is weak or missing) is kept in a
+  `{guidHash}.mp3.part.validator` file next to the `.part`, so the schema needs no column for it.
+  A `.part` without a validator is never resumed; it's downloaded again from the start.
+- The queue is recomputed after every episode, so a day completing or a mode change during a run is
+  picked up. It runs current-day-first per enrollment, interleaved across enrollments, without duplicates.
 - **API 35+ dataSync limit:** a `dataSync` foreground service may run about 6 h per 24 h. A full year
   on Wi-Fi is well within that, and if the system stops the worker it resumes from the `.part` and the
   remaining queue. (Moving to user-initiated data-transfer jobs is open question 6.)
@@ -423,7 +430,9 @@ Picking one writes `manual_pin`. Unpin goes back to automatic.
 ### 8.4 Retention
 After each completion and once a day: delete the file of every episode whose day is COMPLETE or
 SKIPPED in *every* enrollment that references it and that was completed more than
-`podcastRetentionDays` ago, unless `keepPlayedEpisodes` is on. The row stays (`downloadState = NONE`),
+`podcastRetentionDays` ago, unless `keepPlayedEpisodes` is on. A SKIPPED day counts as finished
+straight away. A downloaded episode that no non-archived enrollment references any more (e.g. after
+unenrolling) is deleted at once. The row stays (`downloadState = NONE`),
 along with its position and completion. Deleted episodes aren't downloaded again unless the user
 reopens the day (*Mark not done*).
 

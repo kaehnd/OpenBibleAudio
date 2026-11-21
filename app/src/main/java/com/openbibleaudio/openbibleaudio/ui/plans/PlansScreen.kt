@@ -50,7 +50,13 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.text.format.Formatter
+import androidx.compose.ui.platform.LocalContext
 import com.openbibleaudio.core.model.plan.CycleKey
+import com.openbibleaudio.openbibleaudio.data.db.DownloadMode
+import com.openbibleaudio.openbibleaudio.data.db.EnrollmentEntity
+import com.openbibleaudio.openbibleaudio.podcasts.DownloadPlanner
+import com.openbibleaudio.openbibleaudio.podcasts.EpisodeDownloader
 import com.openbibleaudio.core.model.plan.Reading
 import com.openbibleaudio.openbibleaudio.R
 import com.openbibleaudio.openbibleaudio.playback.BookTitles
@@ -118,8 +124,8 @@ fun PlansScreen(
             text = { LinearProgressIndicator(Modifier.fillMaxWidth()) },
         )
         is PlansDialog.ImportProblem -> ImportProblemDialog(d.result, viewModel::dismissDialog)
-        is PlansDialog.Enroll -> EnrollDialog(d, ui?.versions.orEmpty(), viewModel::dismissDialog) { versionId, start, cycle ->
-            viewModel.enroll(d.plan, versionId, start, cycle)
+        is PlansDialog.Enroll -> EnrollDialog(d, ui?.versions.orEmpty(), viewModel::dismissDialog) { versionId, start, cycle, mode ->
+            viewModel.enroll(d.plan, versionId, start, cycle, mode)
         }
     }
 }
@@ -198,7 +204,7 @@ private fun EnrollDialog(
     dialog: PlansDialog.Enroll,
     versions: List<VersionInfo>,
     onDismiss: () -> Unit,
-    onEnroll: (versionId: String?, startDate: LocalDate, podcastCycle: Int?) -> Unit,
+    onEnroll: (versionId: String?, startDate: LocalDate, podcastCycle: Int?, downloadMode: DownloadMode) -> Unit,
 ) {
     var versionId by rememberSaveable { mutableStateOf<String?>(null) }
     // The listener's cycle choice; until they pick one, the plan's default applies.
@@ -210,6 +216,12 @@ private fun EnrollDialog(
         cyclePicked -> pickedCycle
         else -> ready.defaultKey
     }
+    val cycleOption = ready?.let { r -> if (r.cycleKind == null) r.cycles.firstOrNull() else r.cycles.firstOrNull { it.key == cycle } }
+    // Like the cycle: the default (from size and free space) until the listener picks one.
+    var pickedMode by rememberSaveable { mutableStateOf<DownloadMode?>(null) }
+    val mode = pickedMode
+        ?: cycleOption?.let { DownloadPlanner.defaultMode(it.totalBytes, ready.freeBytes) }
+        ?: DownloadMode.ROLLING
     var startEpochDay by rememberSaveable { mutableStateOf(LocalDate.now().toEpochDay()) }
     var picking by rememberSaveable { mutableStateOf(false) }
     val start = LocalDate.ofEpochDay(startEpochDay)
@@ -236,11 +248,15 @@ private fun EnrollDialog(
                         cyclePicked = true
                     }
                 }
+                if (ready != null && cycleOption != null) {
+                    val past = ready.cycleKind != null && cycleOption.key != ready.cycles.first().key
+                    DownloadSection(cycleOption, ready.freeBytes, past, mode) { pickedMode = it }
+                }
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onEnroll(versionId, start, cycle) },
+                onClick = { onEnroll(versionId, start, cycle, mode) },
                 // Wait for the feed check so the default cycle is known (it fails fast offline).
                 enabled = dialog.podcast !is EnrollPodcast.Loading,
             ) { Text(stringResource(R.string.enroll_confirm)) }
@@ -298,6 +314,30 @@ private fun EnrollPodcastSection(podcast: EnrollPodcast, selected: Int?, onSelec
                 }
             }
         }
+    }
+}
+
+/** How episodes are fetched ahead of time, with sizes and free space (spec 0003 §8.1). */
+@Composable
+private fun DownloadSection(c: CycleOption, freeBytes: Long, pastCycle: Boolean, selected: DownloadMode, onSelect: (DownloadMode) -> Unit) {
+    val context = LocalContext.current
+    fun size(bytes: Long) = Formatter.formatShortFileSize(context, bytes)
+    Text(stringResource(R.string.enroll_download), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp))
+    VersionOption(pluralStringResource(R.plurals.enroll_download_all, c.matched, c.matched, size(c.totalBytes)), selected == DownloadMode.ALL) {
+        onSelect(DownloadMode.ALL)
+    }
+    val window = minOf(EnrollmentEntity.DEFAULT_ROLLING_DAYS, c.dayCount)
+    VersionOption(pluralStringResource(R.plurals.enroll_download_rolling, window, window, size(c.rollingBytes)), selected == DownloadMode.ROLLING) {
+        onSelect(DownloadMode.ROLLING)
+    }
+    VersionOption(stringResource(R.string.enroll_download_off), selected == DownloadMode.OFF) { onSelect(DownloadMode.OFF) }
+    Text(stringResource(R.string.enroll_download_free, size(freeBytes)), style = MaterialTheme.typography.bodySmall)
+    if (selected == DownloadMode.ALL && c.totalBytes + EpisodeDownloader.SPACE_MARGIN > freeBytes) {
+        Text(stringResource(R.string.enroll_download_no_space), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+    }
+    if (pastCycle) {
+        // Older cycles can leave the feed, and the publisher may stop serving them (spec 0003 §7.3).
+        Text(stringResource(R.string.enroll_download_past), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
     }
 }
 

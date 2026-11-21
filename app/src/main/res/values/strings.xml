@@ -138,6 +138,22 @@
     <string name="enroll_start_note">The start date only sets how far behind or ahead you are. You can always keep going to the next day.</string>
     <string name="enroll_confirm">Enroll</string>
     <string name="enroll_podcast">Podcast episodes</string>
+    <string name="episodes_channel_name">Podcast downloads</string>
+    <string name="enroll_download">Download episodes</string>
+    <plurals name="enroll_download_all">
+        <item quantity="one">The episode — %2$s</item>
+        <item quantity="other">All %1$d episodes — %2$s</item>
+    </plurals>
+    <plurals name="enroll_download_rolling">
+        <item quantity="one">Next day — about %2$s</item>
+        <item quantity="other">Next %1$d days — about %2$s</item>
+    </plurals>
+    <string name="enroll_download_off">Don\'t download automatically</string>
+    <string name="enroll_download_free">%1$s free on this device</string>
+    <string name="enroll_download_no_space">Not enough free space for all of them. Downloads stop when storage runs low.</string>
+    <string name="enroll_download_past">This is an older season. It can drop out of the feed, so downloading all of it now is recommended.</string>
+    <string name="episodes_notification_title">Downloading podcast episodes</string>
+    <string name="episodes_notification_progress">%1$d / %2$d</string>
     <string name="enroll_podcast_checking">Checking the podcast feed…</string>
     <string name="enroll_podcast_failed">Couldn\'t reach the podcast feed (%1$s). You can enroll now. Episodes are matched once the feed can be reached.</string>
     <string name="enroll_podcast_stale">Couldn\'t refresh the feed just now (%1$s), so this list may be out of date.</string>

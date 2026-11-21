@@ -11,7 +11,12 @@ import com.openbibleaudio.openbibleaudio.plans.PlanCard
 import com.openbibleaudio.openbibleaudio.plans.PlanImportResult
 import com.openbibleaudio.openbibleaudio.plans.PlanRepository
 import com.openbibleaudio.openbibleaudio.playback.VersionInfo
+import com.openbibleaudio.openbibleaudio.data.db.DownloadMode
+import com.openbibleaudio.openbibleaudio.data.db.EnrollmentEntity
+import com.openbibleaudio.openbibleaudio.podcasts.DownloadPlanner
+import com.openbibleaudio.openbibleaudio.podcasts.EpisodeDownloads
 import com.openbibleaudio.openbibleaudio.podcasts.FeedRefreshResult
+import com.openbibleaudio.openbibleaudio.podcasts.PodcastStorage
 import com.openbibleaudio.openbibleaudio.podcasts.FeedRefreshWorker
 import com.openbibleaudio.openbibleaudio.podcasts.PodcastRepository
 import androidx.work.WorkManager
@@ -58,12 +63,26 @@ sealed interface PlansDialog {
     data class Enroll(val plan: PlanChoice, val notes: List<Issue> = emptyList(), val podcast: EnrollPodcast? = null) : PlansDialog
 }
 
-/** One podcast cycle as the enroll dialog lists it (spec 0003 §7.2). */
-data class CycleOption(val key: Int?, val year: Int?, val matched: Int, val dayCount: Int) {
+/**
+ * One podcast cycle as the enroll dialog lists it (spec 0003 §7.2), with the download sizes for
+ * ALL ([totalBytes]) and for the first ROLLING window ([rollingBytes]) of a new enrollment.
+ */
+data class CycleOption(
+    val key: Int?,
+    val year: Int?,
+    val matched: Int,
+    val dayCount: Int,
+    val totalBytes: Long,
+    val rollingBytes: Long,
+) {
     val complete: Boolean get() = matched == dayCount
 
     companion object {
-        fun from(c: Cycle) = CycleOption(c.key, c.year, c.matchedDays, c.dayCount)
+        fun from(c: Cycle, rollingDays: Int = EnrollmentEntity.DEFAULT_ROLLING_DAYS) = CycleOption(
+            c.key, c.year, c.matchedDays, c.dayCount,
+            totalBytes = DownloadPlanner.estimateBytes(c.byDay.values.map { it.item.enclosureLength }),
+            rollingBytes = DownloadPlanner.estimateBytes((1..c.dayCount).take(rollingDays).mapNotNull { c.byDay[it]?.item?.enclosureLength }),
+        )
     }
 }
 
@@ -74,13 +93,14 @@ sealed interface EnrollPodcast {
     /**
      * [cycles] is newest first. [cycleKind] is null for a plan without a cycle block (then
      * [cycles] has at most one entry). [refreshError] is set when the feed couldn't be fetched
-     * just now and the list comes from an earlier snapshot.
+     * just now and the list comes from an earlier snapshot. [freeBytes] sizes the download choice.
      */
     data class Ready(
         val cycles: List<CycleOption>,
         val defaultKey: Int?,
         val cycleKind: CycleKey?,
         val refreshError: String?,
+        val freeBytes: Long,
     ) : EnrollPodcast
 
     /** No snapshot and the feed couldn't be fetched. Enrolling still works; matching happens later. */
@@ -93,6 +113,8 @@ class PlansViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val plans: PlanRepository,
     private val podcasts: PodcastRepository,
+    private val downloads: EpisodeDownloads,
+    private val storage: PodcastStorage,
     private val workManager: WorkManager,
     library: LibraryRepository,
 ) : ViewModel() {
@@ -102,6 +124,7 @@ class PlansViewModel @Inject constructor(
             if (plans.activePodcastPlans().isNotEmpty()) {
                 FeedRefreshWorker.schedule(workManager)
                 podcasts.refreshActive()
+                downloads.startAll()
             }
         }
     }
@@ -151,17 +174,24 @@ class PlansViewModel @Inject constructor(
         val state = if (cycles.isEmpty() && error != null) {
             EnrollPodcast.Failed(error)
         } else {
-            EnrollPodcast.Ready(cycles.map(CycleOption::from), podcasts.defaultCycle(plan, cycles)?.key, podcast.cycle?.key, error)
+            val free = withContext(Dispatchers.IO) { storage.allocatableBytes() }
+            EnrollPodcast.Ready(cycles.map { CycleOption.from(it) }, podcasts.defaultCycle(plan, cycles)?.key, podcast.cycle?.key, error, free)
         }
         // Only if the same dialog is still open.
         _dialog.update { d -> if (d is PlansDialog.Enroll && d.plan == choice) d.copy(podcast = state) else d }
     }
 
-    fun enroll(plan: PlanChoice, versionId: String?, startDate: LocalDate, podcastCycle: Int?) {
+    fun enroll(plan: PlanChoice, versionId: String?, startDate: LocalDate, podcastCycle: Int?, downloadMode: DownloadMode) {
         _dialog.value = null
         viewModelScope.launch {
-            plans.enroll(plan.id, plan.version, versionId = versionId, startDate = startDate, podcastCycle = podcastCycle)
-            if (plans.plan(plan.id, plan.version)?.podcast != null) FeedRefreshWorker.schedule(workManager)
+            val id = plans.enroll(
+                plan.id, plan.version, versionId = versionId, startDate = startDate,
+                podcastCycle = podcastCycle, downloadMode = downloadMode,
+            )
+            if (plans.plan(plan.id, plan.version)?.podcast != null) {
+                FeedRefreshWorker.schedule(workManager)
+                if (downloadMode != DownloadMode.OFF) downloads.start(id)
+            }
         }
     }
 

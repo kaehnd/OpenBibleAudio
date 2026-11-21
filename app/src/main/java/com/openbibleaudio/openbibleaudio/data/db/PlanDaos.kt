@@ -55,6 +55,16 @@ interface PlanDao {
     @Query("SELECT * FROM enrollment WHERE state = 'ACTIVE' ORDER BY createdAt")
     suspend fun activeEnrollments(): List<EnrollmentEntity>
 
+    /** Every enrollment that isn't archived (ACTIVE, PAUSED, FINISHED). */
+    @Query("SELECT * FROM enrollment WHERE state != 'ARCHIVED' ORDER BY createdAt")
+    suspend fun liveEnrollments(): List<EnrollmentEntity>
+
+    @Query("SELECT * FROM enrollment_day WHERE enrollmentId = :enrollmentId")
+    suspend fun days(enrollmentId: Long): List<EnrollmentDayEntity>
+
+    @Query("UPDATE enrollment SET downloadMode = :mode, rollingDays = :rollingDays WHERE id = :id")
+    suspend fun setDownloadMode(id: Long, mode: DownloadMode, rollingDays: Int)
+
     @Query("SELECT day, status FROM enrollment_day WHERE enrollmentId = :enrollmentId")
     suspend fun dayStatuses(enrollmentId: Long): List<DayStatusRow>
 
@@ -169,6 +179,19 @@ interface PodcastDao {
             "downloadedBytes = :bytes, downloadError = :error WHERE feedId = :feedId AND guidHash = :guidHash"
     )
     suspend fun setDownload(feedId: String, guidHash: String, state: DownloadState, localPath: String?, bytes: Long?, error: String?)
+
+    /** A finished download. [durationMs] (from the file) is kept only when the feed gave none. */
+    @Query(
+        "UPDATE podcast_episode SET downloadState = 'DOWNLOADED', localPath = :localPath, downloadedBytes = :bytes, " +
+            "downloadError = NULL, durationMs = COALESCE(durationMs, :durationMs) WHERE feedId = :feedId AND guidHash = :guidHash"
+    )
+    suspend fun setDownloaded(feedId: String, guidHash: String, localPath: String, bytes: Long, durationMs: Long?)
+
+    @Query("SELECT * FROM podcast_episode WHERE downloadState = :state")
+    suspend fun episodesIn(state: DownloadState): List<PodcastEpisodeEntity>
+
+    @Query("SELECT COALESCE(SUM(downloadedBytes), 0) FROM podcast_episode WHERE feedId = :feedId AND downloadState = 'DOWNLOADED'")
+    fun observeDownloadedBytes(feedId: String): Flow<Long>
 
     @Query("UPDATE podcast_episode SET positionMs = :positionMs, lastPlayedAt = :at WHERE feedId = :feedId AND guidHash = :guidHash")
     suspend fun setPosition(feedId: String, guidHash: String, positionMs: Long, at: Long)

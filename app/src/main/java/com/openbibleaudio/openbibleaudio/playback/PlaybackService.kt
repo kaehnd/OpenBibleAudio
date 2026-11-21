@@ -39,6 +39,8 @@ import com.openbibleaudio.openbibleaudio.library.BibleAudioSource
 import com.openbibleaudio.openbibleaudio.plans.DayQueue
 import com.openbibleaudio.openbibleaudio.plans.EnrollmentSummary
 import com.openbibleaudio.openbibleaudio.plans.EpisodeAvailability
+import com.openbibleaudio.openbibleaudio.plans.DayStatus
+import com.openbibleaudio.openbibleaudio.podcasts.EpisodeDownloads
 import com.openbibleaudio.openbibleaudio.podcasts.PodcastRepository
 import com.openbibleaudio.openbibleaudio.plans.EpisodeUnavailable
 import com.openbibleaudio.openbibleaudio.plans.PlanQueueBuilder
@@ -77,6 +79,7 @@ class PlaybackService : MediaLibraryService() {
     @Inject lateinit var completions: CompletionDao
     @Inject lateinit var planRepository: PlanRepository
     @Inject lateinit var podcasts: PodcastRepository
+    @Inject lateinit var episodeDownloads: EpisodeDownloads
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val snapshot = MutableStateFlow<LibrarySnapshot?>(null)
@@ -573,9 +576,17 @@ class PlaybackService : MediaLibraryService() {
                     ChapterCompletionEntity(versionId = built.versionId, book = entry.ref.book, chapter = entry.ref.chapter, completedAt = System.currentTimeMillis()),
                 )
             }
-            planRepository.recordItemCompleted(built.queue, entry.itemKey)
+            val status = planRepository.recordItemCompleted(built.queue, entry.itemKey)
+            if (status == DayStatus.COMPLETE && summaryHasPodcast(id.enrollmentId)) {
+                // The rolling window moves on, and finished episodes may now be deletable (spec 0003 §8.1, §8.4).
+                episodeDownloads.applyRetention()
+                episodeDownloads.start(id.enrollmentId)
+            }
         }
     }
+
+    private suspend fun summaryHasPodcast(enrollmentId: Long): Boolean =
+        planRepository.summary(enrollmentId)?.plan?.podcast != null
 
     /**
      * With "continue to next day" on, appends the next open day when the last item of a day's
